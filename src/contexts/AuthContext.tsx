@@ -12,6 +12,7 @@ interface User {
   email: string;
   name: string;
   role: UserRole;
+  number?: string | null;
   avatarUrl?: string | null;
   subscription?: UserSubscription | null;
 }
@@ -20,7 +21,7 @@ interface AuthContextType {
   user: User | null;
   profile: Profile | null;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, name: string) => Promise<void>;
+  register: (email: string, password: string, name: string, number?: string) => Promise<void>;
   logout: () => void;
   isAuthenticated: boolean;
   isLoading: boolean;
@@ -106,10 +107,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         )
       ]);
 
+      const metadata = supabaseUser.user_metadata as { name?: string; number?: string };
+      const sanitizedMetadataNumber =
+        metadata?.number && typeof metadata.number === "string"
+          ? metadata.number.replace(/\D/g, "")
+          : undefined;
+
       // Process profile
       let profileData: Profile | null = null;
       if (profileResult.status === 'fulfilled' && profileResult.value.data) {
         profileData = profileResult.value.data;
+        if (sanitizedMetadataNumber && profileData.number !== sanitizedMetadataNumber) {
+          const { data: updatedProfile, error: updateError } = await supabase
+            .from("profiles")
+            .update({ number: sanitizedMetadataNumber })
+            .eq("user_id", supabaseUser.id)
+            .select()
+            .single();
+          if (!updateError && updatedProfile) {
+            profileData = updatedProfile;
+          }
+        }
       } else if (profileResult.status === 'fulfilled' && profileResult.value.error?.code === 'PGRST116') {
         // Create profile if not exists
         const { data: newProfile } = await supabase
@@ -117,7 +135,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           .insert({
             user_id: supabaseUser.id,
             email: supabaseUser.email || "",
-            name: supabaseUser.email?.split('@')[0] || "Usuário",
+            name: metadata?.name || supabaseUser.email?.split('@')[0] || "Usuário",
+            number: sanitizedMetadataNumber || null,
           })
           .select()
           .single();
@@ -192,8 +211,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const userData: User = {
         id: supabaseUser.id,
         email: supabaseUser.email || profileData?.email || "",
-        name: profileData?.name || supabaseUser.email?.split('@')[0] || "Usuário",
+        name: profileData?.name || metadata?.name || supabaseUser.email?.split('@')[0] || "Usuário",
         role: roleData?.role || currentUserRole || ("user" as UserRole),
+        number: profileData?.number || sanitizedMetadataNumber || null,
         avatarUrl: profileData?.avatar_url,
         subscription: subscriptionData || null,
       };
@@ -217,6 +237,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           email: supabaseUser.email || "",
           name: supabaseUser.email?.split('@')[0] || "Usuário",
           role: currentUserRole || ("user" as UserRole),
+          number: currentUserRef.current?.number || sanitizedMetadataNumber || null,
         };
         setUser(fallbackUser);
         currentUserRef.current = fallbackUser;
@@ -288,13 +309,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const register = async (email: string, password: string, name: string) => {
+  const register = async (email: string, password: string, name: string, number?: string) => {
+    const sanitizedNumber = number?.replace(/\D/g, "");
+
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         data: {
-          name: name,
+          name,
+          number: sanitizedNumber,
         },
       },
     });
@@ -303,7 +327,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       throw new Error(error.message || "Erro ao criar conta");
     }
 
-    // Após registro, fazer login automático se não precisar confirmar email
+    if (data.user && data.session && sanitizedNumber !== undefined) {
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .upsert(
+          {
+            user_id: data.user.id,
+            email,
+            name,
+            number: sanitizedNumber || null,
+          },
+          { onConflict: "user_id" }
+        );
+
+      if (profileError) {
+        console.warn("⚠️ [AUTH] Não foi possível salvar o número do usuário:", profileError);
+      }
+    }
+
     if (data.user && data.session) {
       await fetchUserData(data.user, true);
     }

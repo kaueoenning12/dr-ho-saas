@@ -16,12 +16,15 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { NotificationBell } from "./layout/NotificationBell";
+import { useTheme } from "next-themes";
 
 export function AppSidebar() {
+  const { resolvedTheme } = useTheme();
   const { state } = useSidebar();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const isCollapsed = state === "collapsed";
+  const logoSrc = resolvedTheme === "dark" ? "/dr_logo_branca.png" : "/dr_logo.png";
 
   const handleLogout = () => {
     logout();
@@ -49,7 +52,7 @@ export function AppSidebar() {
           <div className="flex items-center gap-2.5 animate-fade-in">
             <div className="bg-white rounded-full p-1.5 shadow-md flex items-center justify-center transition-transform duration-300 hover:scale-110 hover:rotate-6">
               <img 
-                src="/dr_logo.png" 
+                src={logoSrc} 
                 alt="Dr. HO Logo" 
                 className="h-9 w-9 object-contain"
               />
@@ -60,7 +63,7 @@ export function AppSidebar() {
           <div className="flex justify-center animate-scale-in">
             <div className="bg-white rounded-full p-1.5 shadow-md flex items-center justify-center transition-transform duration-300 hover:scale-110 hover:rotate-6">
               <img 
-                src="/dr_logo.png" 
+                src={logoSrc} 
                 alt="Dr. HO Logo" 
                 className="h-8 w-8 object-contain"
               />

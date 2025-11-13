@@ -7,26 +7,40 @@ import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import { ArrowLeft } from "lucide-react";
+import { useTheme } from "next-themes";
 
 export default function Register() {
   const [formData, setFormData] = useState({
     name: "",
     email: "",
+    number: "",
     password: "",
     confirmPassword: "",
   });
   const [loading, setLoading] = useState(false);
   const { register } = useAuth();
   const navigate = useNavigate();
+  const { resolvedTheme } = useTheme();
+  const logoSrc = resolvedTheme === "dark" ? "/dr_logo_branca.png" : "/dr_logo.png";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     // Validações
-    if (!formData.name || !formData.email || !formData.password || !formData.confirmPassword) {
+    if (!formData.name || !formData.email || !formData.password || !formData.confirmPassword || !formData.number) {
       toast({
         title: "Campos obrigatórios",
         description: "Por favor, preencha todos os campos",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const sanitizedNumber = formData.number.replace(/\D/g, "");
+    if (sanitizedNumber.length < 10) {
+      toast({
+        title: "Número inválido",
+        description: "Informe um número de telefone válido com DDD",
         variant: "destructive",
       });
       return;
@@ -53,7 +67,7 @@ export default function Register() {
     setLoading(true);
 
     try {
-      await register(formData.email, formData.password, formData.name);
+      await register(formData.email, formData.password, formData.name, sanitizedNumber);
       
       toast({
         title: "Conta criada com sucesso!",
@@ -73,12 +87,12 @@ export default function Register() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-navy p-4">
-      <Card className="w-full max-w-[440px] border-0 shadow-elegant-lg">
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <Card className="w-full max-w-[440px] border shadow-elegant-lg">
         <CardHeader className="space-y-4 sm:space-y-5 text-center px-4 sm:px-10 pt-10 sm:pt-12 pb-4 sm:pb-6">
           <div className="flex justify-center">
             <img 
-              src="/dr_logo.png" 
+              src={logoSrc} 
               alt="Dr. HO Logo" 
               className="h-14 w-auto sm:h-16 object-contain opacity-95"
             />
@@ -99,6 +113,23 @@ export default function Register() {
                 placeholder="Seu nome completo"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                className="h-10 sm:h-11 text-sm sm:text-[15px] font-normal border-cyan/30 rounded-lg focus-visible:ring-cyan/30 focus-visible:border-cyan transition-all"
+                required
+                disabled={loading}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="number" className="text-[12px] sm:text-[13px] font-medium text-foreground">
+                Número de Telefone
+              </Label>
+              <Input
+                id="number"
+                type="tel"
+                inputMode="tel"
+                placeholder="(11) 91234-5678"
+                value={formData.number}
+                onChange={(e) => setFormData({ ...formData, number: e.target.value })}
                 className="h-10 sm:h-11 text-sm sm:text-[15px] font-normal border-cyan/30 rounded-lg focus-visible:ring-cyan/30 focus-visible:border-cyan transition-all"
                 required
                 disabled={loading}

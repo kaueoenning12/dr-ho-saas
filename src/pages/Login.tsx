@@ -4,9 +4,10 @@ import { Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/card";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
+import { useTheme } from "next-themes";
 
 export default function Login() {
   const [email, setEmail] = useState("");
@@ -15,6 +16,8 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
+  const { resolvedTheme } = useTheme();
+  const logoSrc = resolvedTheme === "dark" ? "/dr_logo_branca.png" : "/dr_logo.png";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -53,7 +56,7 @@ export default function Login() {
         <CardHeader className="space-y-4 sm:space-y-5 text-center px-4 sm:px-10 pt-10 sm:pt-12 pb-4 sm:pb-6">
           <div className="flex justify-center">
             <img 
-              src="/dr_logo.png" 
+              src={logoSrc} 
               alt="Dr. HO Logo" 
               className="h-14 w-auto sm:h-16 object-contain opacity-95"
             />

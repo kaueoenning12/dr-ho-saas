@@ -12,11 +12,14 @@ import {
   SheetFooter,
 } from "@/components/ui/sheet";
 import { useState } from "react";
+import { useTheme } from "next-themes";
 
 export function MobileSidebar() {
   const [open, setOpen] = useState(false);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const { resolvedTheme } = useTheme();
+  const logoSrc = resolvedTheme === "dark" ? "/dr_logo_branca.png" : "/dr_logo.png";
 
   const handleLogout = () => {
     logout();
@@ -59,7 +62,7 @@ export function MobileSidebar() {
           <div className="flex items-center gap-2.5 animate-fade-in">
             <div className="bg-white rounded-full p-1.5 shadow-md flex items-center justify-center transition-transform duration-300 hover:scale-110 hover:rotate-6">
               <img 
-                src="/dr_logo.png" 
+                src={logoSrc} 
                 alt="Dr. HO Logo" 
                 className="h-9 w-9 object-contain"
               />

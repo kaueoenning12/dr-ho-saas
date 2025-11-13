@@ -70,14 +70,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const isTimeoutError = (error: unknown) =>
         error instanceof Error && error.message === "Timeout";
 
-      const withTimeout = async <T>(promise: Promise<T>) => {
+      async function withTimeout<T>(promise: Promise<T>) {
         return Promise.race([
           promise,
           new Promise<never>((_, reject) =>
             setTimeout(() => reject(new Error("Timeout")), QUERY_TIMEOUT)
           ),
         ]);
-      };
+      }
       
       const [profileResult, roleResult, subscriptionResult] = await Promise.allSettled([
         // Profile query

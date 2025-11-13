@@ -16,11 +16,6 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     detectSessionInUrl: true,
     flowType: 'pkce'
   },
-  global: {
-    headers: {
-      'x-application-name': 'dr-ho-saas',
-    },
-  },
   db: {
     schema: 'public'
   },

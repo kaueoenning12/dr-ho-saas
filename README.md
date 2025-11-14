@@ -107,10 +107,42 @@ No dashboard do Stripe, crie:
 - Um produto para "Doutor HO SaaS"
 - Um preço anual (ex: R$ 365,00/ano)
 
-#### 5.2. Configure webhooks
-Adicione um webhook endpoint:
-- URL: `https://your-project.supabase.co/functions/v1/stripe-webhooks`
-- Eventos: `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_succeeded`, `invoice.payment_failed`
+#### 5.2. Configure webhooks (IMPORTANTE)
+
+O webhook é essencial para sincronizar o status das assinaturas entre o Stripe e o banco de dados.
+
+**Passo a passo:**
+
+1. **No Dashboard do Stripe:**
+   - Acesse: Developers > Webhooks
+   - Clique em "Add endpoint"
+   - URL do endpoint: `https://your-project-ref.supabase.co/functions/v1/stripe-webhooks`
+     - Substitua `your-project-ref` pelo ID do seu projeto Supabase
+   - Descrição: "Dr. HO SaaS - Subscription Webhooks"
+
+2. **Selecione os eventos a serem ouvidos:**
+   - `checkout.session.completed` - Quando checkout é concluído
+   - `customer.subscription.created` - Quando assinatura é criada
+   - `customer.subscription.updated` - Quando assinatura é atualizada
+   - `customer.subscription.deleted` - Quando assinatura é cancelada
+   - `invoice.payment_succeeded` - Quando pagamento é bem-sucedido
+   - `invoice.payment_failed` - Quando pagamento falha
+
+3. **Copie o Webhook Signing Secret:**
+   - Após criar o webhook, copie o "Signing secret" (começa com `whsec_`)
+   - Adicione no Supabase como variável de ambiente: `STRIPE_WEBHOOK_SECRET`
+
+4. **Teste o webhook:**
+   - Use o Stripe CLI para testar localmente:
+     ```bash
+     stripe listen --forward-to localhost:54321/functions/v1/stripe-webhooks
+     ```
+   - Ou use o modo de teste no dashboard do Stripe
+
+**⚠️ IMPORTANTE:**
+- Sem o webhook configurado, as assinaturas não serão ativadas automaticamente após o pagamento
+- O webhook deve estar acessível publicamente (não use localhost em produção)
+- Mantenha o `STRIPE_WEBHOOK_SECRET` seguro e nunca o exponha no frontend
 
 ### 6. Execute o projeto
 ```bash

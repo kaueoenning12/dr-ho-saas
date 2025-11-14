@@ -2,6 +2,7 @@ import { ReactNode } from "react";
 import { Navigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSubscriptionCheck } from "@/hooks/useSubscriptionCheck";
+import { SubscriptionRequired } from "@/pages/SubscriptionRequired";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -39,7 +40,7 @@ export function ProtectedRoute({
 
   // Check subscription access for protected resources
   if (requireSubscription && !hasAccess) {
-    return <Navigate to={redirectTo || "/plans"} replace />;
+    return <SubscriptionRequired />;
   }
   return <>{children}</>;
 }

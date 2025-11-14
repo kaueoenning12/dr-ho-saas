@@ -458,7 +458,7 @@ export function PDFViewer({ document, open, onClose }: PDFViewerProps) {
                       }}
                     >
                       <div
-                        className="shadow-xl border border-border/40 rounded-md overflow-hidden bg-white select-none"
+                        className="shadow-xl border border-border/40 rounded-md overflow-hidden bg-card select-none"
                         style={{
                           userSelect: "none",
                           WebkitUserSelect: "none",

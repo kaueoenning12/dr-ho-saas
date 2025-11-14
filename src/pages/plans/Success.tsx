@@ -15,7 +15,7 @@ import { toast } from "sonner";
 export default function PlansSuccess() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, refreshSubscription } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   const [sessionData, setSessionData] = useState<any>(null);
 
@@ -32,13 +32,38 @@ export default function PlansSuccess() {
       return;
     }
 
-    // Simulate loading while webhook processes
-    const timer = setTimeout(() => {
-      setIsLoading(false);
-    }, 2000);
+    // Refresh subscription data after webhook processes
+    const refreshData = async () => {
+      try {
+        // Wait a bit for webhook to process
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Refresh subscription data
+        await refreshSubscription();
+        
+        // Verify subscription was created
+        const { data: subscription } = await supabase
+          .from('user_subscriptions')
+          .select('*')
+          .eq('user_id', user?.id)
+          .eq('status', 'active')
+          .single();
 
-    return () => clearTimeout(timer);
-  }, [isAuthenticated, sessionId, navigate]);
+        if (subscription) {
+          toast.success("Assinatura ativada com sucesso!");
+        } else {
+          toast.info("Processando sua assinatura... Isso pode levar alguns segundos.");
+        }
+      } catch (error) {
+        console.error('Error refreshing subscription:', error);
+        toast.error("Erro ao verificar assinatura. Tente atualizar a página.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    refreshData();
+  }, [isAuthenticated, sessionId, navigate, user?.id, refreshSubscription]);
 
   const handleGoToDocuments = () => {
     navigate('/');

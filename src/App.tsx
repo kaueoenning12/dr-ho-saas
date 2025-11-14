@@ -124,7 +124,7 @@ const App = () => (
                     <Route
                       path="/plans"
                       element={
-                        <ProtectedRoute>
+                        <ProtectedRoute requireSubscription={false}>
                           <Plans />
                         </ProtectedRoute>
                       }
@@ -132,7 +132,7 @@ const App = () => (
                     <Route
                       path="/plans/success"
                       element={
-                        <ProtectedRoute>
+                        <ProtectedRoute requireSubscription={false}>
                           <PlansSuccess />
                         </ProtectedRoute>
                       }
@@ -140,7 +140,7 @@ const App = () => (
                     <Route
                       path="/plans/cancel"
                       element={
-                        <ProtectedRoute>
+                        <ProtectedRoute requireSubscription={false}>
                           <PlansCancel />
                         </ProtectedRoute>
                       }

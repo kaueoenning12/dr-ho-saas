@@ -20,6 +20,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { NotificationList } from "@/components/layout/NotificationList";
+import { SubscriptionBanner } from "@/components/SubscriptionBanner";
 
 type Document = Database["public"]["Tables"]["documents"]["Row"];
 
@@ -132,6 +133,7 @@ export default function Documents() {
           </header>
 
           <div className="flex-1 px-2 sm:px-3 md:px-6 py-2 sm:py-3 md:py-4">
+            <SubscriptionBanner />
             <div 
               ref={titleReveal.elementRef}
               className={`mb-4 sm:mb-6 md:mb-8 scroll-reveal scroll-reveal-up ${titleReveal.isVisible ? 'is-visible' : ''}`}

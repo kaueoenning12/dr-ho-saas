@@ -60,7 +60,7 @@ export function MobileSidebar() {
       <SheetContent side="left" className="w-[280px] sm:w-[320px] p-0 border-cyan/20 animate-slide-in-bounce">
         <SheetHeader className="border-b border-cyan/10 px-5 py-5">
           <div className="flex items-center gap-2.5 animate-fade-in">
-            <div className="bg-white rounded-full p-1.5 shadow-md flex items-center justify-center transition-transform duration-300 hover:scale-110 hover:rotate-6">
+            <div className="bg-card border border-border rounded-full p-1.5 shadow-md flex items-center justify-center transition-transform duration-300 hover:scale-110 hover:rotate-6">
               <img 
                 src={logoSrc} 
                 alt="Dr. HO Logo" 

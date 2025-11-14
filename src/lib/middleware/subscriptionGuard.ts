@@ -82,7 +82,13 @@ export async function checkSubscriptionAccess(userId: string): Promise<Subscript
     const now = new Date();
     const expiresAt = subscription.expires_at ? new Date(subscription.expires_at) : null;
     const isExpired = expiresAt ? now > expiresAt : false;
-    const isActive = (normalizedStatus === 'active' || normalizedStatus === 'trialing') && !isExpired;
+    
+    // Check if plan is "Free" - treat as not subscribed
+    const planName = (subscription.subscription_plans as any)?.name;
+    const isFreePlan = planName && planName.toLowerCase() === 'free';
+    
+    // User only has access if subscription is active AND not a Free plan
+    const isActive = !isFreePlan && (normalizedStatus === 'active' || normalizedStatus === 'trialing') && !isExpired;
     const daysUntilExpiry = expiresAt
       ? Math.ceil((expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
       : Number.POSITIVE_INFINITY;

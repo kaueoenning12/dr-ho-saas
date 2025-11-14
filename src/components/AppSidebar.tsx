@@ -50,7 +50,7 @@ export function AppSidebar() {
       <SidebarHeader className="border-b border-sidebar-border px-5 py-5 transition-all duration-300">
         {!isCollapsed ? (
           <div className="flex items-center gap-2.5 animate-fade-in">
-            <div className="bg-white rounded-full p-1.5 shadow-md flex items-center justify-center transition-transform duration-300 hover:scale-110 hover:rotate-6">
+            <div className="bg-card border border-border rounded-full p-1.5 shadow-md flex items-center justify-center transition-transform duration-300 hover:scale-110 hover:rotate-6">
               <img 
                 src={logoSrc} 
                 alt="Dr. HO Logo" 
@@ -61,7 +61,7 @@ export function AppSidebar() {
           </div>
         ) : (
           <div className="flex justify-center animate-scale-in">
-            <div className="bg-white rounded-full p-1.5 shadow-md flex items-center justify-center transition-transform duration-300 hover:scale-110 hover:rotate-6">
+            <div className="bg-card border border-border rounded-full p-1.5 shadow-md flex items-center justify-center transition-transform duration-300 hover:scale-110 hover:rotate-6">
               <img 
                 src={logoSrc} 
                 alt="Dr. HO Logo" 

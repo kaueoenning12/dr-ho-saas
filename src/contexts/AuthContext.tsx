@@ -23,6 +23,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, name: string, number?: string) => Promise<void>;
   logout: () => void;
+  refreshSubscription: () => Promise<void>;
   isAuthenticated: boolean;
   isLoading: boolean;
 }
@@ -101,7 +102,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         withTimeout(
           supabase
             .from("user_subscriptions")
-            .select("*")
+            .select(`
+              *,
+              subscription_plans (
+                id,
+                name,
+                price
+              )
+            `)
             .eq("user_id", supabaseUser.id)
             .maybeSingle()
         )
@@ -310,7 +318,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const register = async (email: string, password: string, name: string, number?: string) => {
-    const sanitizedNumber = number?.replace(/\D/g, "");
+    const sanitizedNumber = number?.replace(/\D/g, "") || null;
 
     const { data, error } = await supabase.auth.signUp({
       email,
@@ -327,7 +335,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       throw new Error(error.message || "Erro ao criar conta");
     }
 
-    if (data.user && data.session && sanitizedNumber !== undefined) {
+    // Always try to save/update profile with number, even if no session yet
+    // The trigger will also handle this, but we ensure it's saved here too
+    if (data.user) {
       const { error: profileError } = await supabase
         .from("profiles")
         .upsert(
@@ -335,19 +345,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             user_id: data.user.id,
             email,
             name,
-            number: sanitizedNumber || null,
+            number: sanitizedNumber,
           },
           { onConflict: "user_id" }
         );
 
       if (profileError) {
-        console.warn("⚠️ [AUTH] Não foi possível salvar o número do usuário:", profileError);
+        console.warn("⚠️ [AUTH] Não foi possível salvar o perfil do usuário:", profileError);
       }
     }
 
+    // If session exists, fetch user data immediately
     if (data.user && data.session) {
       await fetchUserData(data.user, true);
     }
+    // If no session (email confirmation required), the trigger will handle profile and subscription creation
   };
 
   const logout = async () => {
@@ -359,6 +371,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     lastFetchTime.current = 0;
   };
 
+  const refreshSubscription = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user) {
+      await fetchUserData(session.user, true);
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -367,6 +386,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         login,
         register,
         logout,
+        refreshSubscription,
         isAuthenticated: !!user,
         isLoading,
       }}

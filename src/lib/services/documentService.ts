@@ -33,6 +33,84 @@ export interface DocumentStats {
   category_counts: Record<string, number>;
 }
 
+/**
+ * Extract file path from Supabase Storage URL
+ */
+function extractFilePathFromUrl(url: string): string | null {
+  try {
+    // Supabase Storage URLs typically look like:
+    // https://[project].supabase.co/storage/v1/object/public/documents/path/to/file.pdf
+    // or
+    // https://[project].supabase.co/storage/v1/object/sign/documents/path/to/file.pdf?token=...
+    // or
+    // https://[project].supabase.co/storage/v1/object/public/documents/user-id-timestamp.pdf
+    
+    const urlObj = new URL(url);
+    const pathMatch = urlObj.pathname.match(/\/documents\/(.+)$/);
+    if (pathMatch && pathMatch[1]) {
+      // Decode the path in case it's URL encoded
+      const decodedPath = decodeURIComponent(pathMatch[1]);
+      return `documents/${decodedPath}`;
+    }
+    return null;
+  } catch (error) {
+    console.error('Error extracting file path from URL:', error);
+    return null;
+  }
+}
+
+/**
+ * Upload PDF file to Supabase Storage
+ */
+export async function uploadPDFFile(
+  file: File,
+  userId: string
+): Promise<{ publicUrl: string; filePath: string; fileSize: number }> {
+  const fileExt = file.name.split('.').pop();
+  const fileName = `${userId}-${Date.now()}.${fileExt}`;
+  const filePath = `documents/${fileName}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from('documents')
+    .upload(filePath, file, {
+      cacheControl: '3600',
+      upsert: false
+    });
+
+  if (uploadError) {
+    throw new Error(`Failed to upload file: ${uploadError.message}`);
+  }
+
+  const { data: { publicUrl } } = supabase.storage
+    .from('documents')
+    .getPublicUrl(filePath);
+
+  return {
+    publicUrl,
+    filePath,
+    fileSize: file.size
+  };
+}
+
+/**
+ * Delete PDF file from Supabase Storage
+ */
+export async function deletePDFFile(pdfUrl: string): Promise<void> {
+  const filePath = extractFilePathFromUrl(pdfUrl);
+  
+  if (!filePath) {
+    throw new Error('Invalid PDF URL. Cannot extract file path.');
+  }
+
+  const { error } = await supabase.storage
+    .from('documents')
+    .remove([filePath]);
+
+  if (error) {
+    throw new Error(`Failed to delete file: ${error.message}`);
+  }
+}
+
 export class DocumentService {
   /**
    * Get documents with filters and pagination

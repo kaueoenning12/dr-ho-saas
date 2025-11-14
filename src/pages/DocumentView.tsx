@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Loader2, Shield } from "lucide-react";
+import { ArrowLeft, Loader2, Shield, FileText, Home, MessageSquare, MessageCircle, Megaphone, Lightbulb, CreditCard, Settings } from "lucide-react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { MobileSidebar } from "@/components/layout/MobileSidebar";
@@ -10,7 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { mockDocumentContents } from "@/lib/mockData";
-import { useDocumentById } from "@/hooks/useDocumentsQuery";
+import { useDocumentById, useDocuments } from "@/hooks/useDocumentsQuery";
+import { CardNavigation } from "@/components/CardNavigation";
 
 export default function DocumentView() {
   const [showProtectionWarning, setShowProtectionWarning] = useState(false);
@@ -23,6 +24,16 @@ export default function DocumentView() {
     data: document,
     isLoading: isDocumentLoading,
   } = useDocumentById(id ?? null);
+
+  // Get related documents in the same category
+  const { data: relatedDocuments = [] } = useDocuments({
+    category: document?.category || "Todas",
+  });
+
+  // Filter out current document and limit to 5
+  const relatedDocs = relatedDocuments
+    .filter((doc) => doc.id !== document?.id)
+    .slice(0, 5);
 
   useEffect(() => {
     if (!document) return;
@@ -131,10 +142,48 @@ export default function DocumentView() {
 
   const hasSimulatedContent = document ? mockDocumentContents[document.id] : undefined;
 
+  // Prepare navigation cards for CardNavigation
+  const navCards = [
+    {
+      label: "Navegação",
+      links: [
+        { label: "Documentos", href: "/", icon: Home },
+        { label: "Fórum", href: "/forum", icon: MessageSquare },
+        { label: "WhatsApp", href: "/whatsapp-community", icon: MessageCircle },
+        { label: "Avisos", href: "/announcements", icon: Megaphone },
+        { label: "Sugestões", href: "/suggestions", icon: Lightbulb },
+      ],
+    },
+    ...(relatedDocs.length > 0
+      ? [
+          {
+            label: "Documentos Relacionados",
+            links: relatedDocs.map((doc) => ({
+              label: doc.title.length > 30 ? doc.title.substring(0, 30) + "..." : doc.title,
+              href: `/documents/${doc.id}`,
+              icon: FileText,
+            })),
+          },
+        ]
+      : []),
+    {
+      label: "Conta",
+      links: [
+        { label: "Planos", href: "/plans", icon: CreditCard },
+        { label: "Configurações", href: "/settings", icon: Settings },
+      ],
+    },
+  ];
+
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full bg-background">
         <AppSidebar />
+        <CardNavigation
+          navCards={navCards}
+          showOnScroll={true}
+          scrollThreshold={100}
+        />
         <main className="flex-1 flex flex-col min-w-0 overflow-x-hidden">
           <header className="border-b border-cyan/20 bg-background/95 backdrop-blur-md sticky top-0 z-10 shadow-sm">
             <div className="flex items-center gap-2 sm:gap-3 md:gap-4 px-3 sm:px-4 md:px-6 py-2 sm:py-2.5">

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Search, Sparkles } from "lucide-react";
+import { Search, Sparkles, FileText, MessageSquare, MessageCircle, Megaphone, Lightbulb, CreditCard, Settings, Shield } from "lucide-react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { MobileSidebar } from "@/components/layout/MobileSidebar";
@@ -21,6 +21,8 @@ import {
 } from "@/components/ui/dialog";
 import { NotificationList } from "@/components/layout/NotificationList";
 import { SubscriptionBanner } from "@/components/SubscriptionBanner";
+import { CardNavigation } from "@/components/CardNavigation";
+import { useUnreadCount } from "@/hooks/useNotificationsQuery";
 
 type Document = Database["public"]["Tables"]["documents"]["Row"];
 
@@ -38,30 +40,71 @@ export default function Documents() {
     showOnlyNew: showOnlyNew,
   });
 
+  const { data: unreadCount = 0, isLoading: isLoadingUnreadCount } = useUnreadCount();
+
   const titleReveal = useScrollReveal<HTMLDivElement>({ threshold: 0.3 });
 
   useEffect(() => {
-    if (!user || typeof window === "undefined") {
+    if (!user || typeof window === "undefined" || isLoadingUnreadCount) {
       return;
     }
 
-    const sessionKey = `notificationDialogSeen:${user.id}`;
-    const hasSeenDialog = sessionStorage.getItem(sessionKey);
+    // Only show dialog if there are unread notifications
+    if (unreadCount > 0) {
+      const sessionKey = `notificationDialogSeen:${user.id}`;
+      const hasSeenDialog = sessionStorage.getItem(sessionKey);
 
-    if (!hasSeenDialog) {
-      setNotificationDialogOpen(true);
-      sessionStorage.setItem(sessionKey, "true");
+      if (!hasSeenDialog) {
+        setNotificationDialogOpen(true);
+        sessionStorage.setItem(sessionKey, "true");
+      }
     }
-  }, [user]);
+  }, [user, unreadCount, isLoadingUnreadCount]);
 
   const handleOpenDocument = (document: Document) => {
     navigate(`/documents/${document.id}`);
   };
 
+  // Prepare navigation cards for CardNavigation
+  const navCards = [
+    {
+      label: "Categorias",
+      links: categories
+        .filter((cat) => cat !== "Todas")
+        .map((category) => ({
+          label: category,
+          href: "/",
+          icon: FileText,
+        })),
+    },
+    {
+      label: "Navegação",
+      links: [
+        { label: "Fórum", href: "/forum", icon: MessageSquare },
+        { label: "WhatsApp", href: "/whatsapp-community", icon: MessageCircle },
+        { label: "Avisos", href: "/announcements", icon: Megaphone },
+        { label: "Sugestões", href: "/suggestions", icon: Lightbulb },
+      ],
+    },
+    {
+      label: "Conta",
+      links: [
+        { label: "Planos", href: "/plans", icon: CreditCard },
+        { label: "Configurações", href: "/settings", icon: Settings },
+        ...(user?.role === "admin" ? [{ label: "Admin", href: "/admin", icon: Shield }] : []),
+      ],
+    },
+  ];
+
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full bg-background">
         <AppSidebar />
+        <CardNavigation
+          navCards={navCards}
+          showOnScroll={true}
+          scrollThreshold={100}
+        />
         <main className="flex-1 flex flex-col min-w-0 overflow-x-hidden">
           <header className="border-b border-cyan/20 bg-background/95 backdrop-blur-md sticky top-0 z-10 shadow-sm">
             {/* Linha superior - busca e perfil */}

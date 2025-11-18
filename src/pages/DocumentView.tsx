@@ -15,6 +15,7 @@ import { CardNavigation } from "@/components/CardNavigation";
 import { useDocumentUnlock } from "@/hooks/usePremiumDocuments";
 import { PremiumDocumentUnlock } from "@/components/PremiumDocumentUnlock";
 import { useSignedPdfUrl } from "@/hooks/useSignedPdfUrl";
+import { PDFViewer } from "@/components/PDFViewer";
 
 export default function DocumentView() {
   const [showProtectionWarning, setShowProtectionWarning] = useState(false);
@@ -376,22 +377,20 @@ export default function DocumentView() {
                   </div>
                 </div>
 
-                <div className="relative w-full h-full overflow-auto">
+                <div className="relative w-full h-full">
                   {signedUrl ? (
-                    <iframe
-                      src={`${signedUrl}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
-                      className="w-full h-full border-none select-none"
-                      title={document.title}
-                      onLoad={() => setIsPdfLoading(false)}
-                      sandbox="allow-same-origin allow-scripts"
-                      aria-hidden="true"
-                      tabIndex={-1}
-                      style={{
-                        backgroundColor: "#fff",
-                        userSelect: "none",
-                        WebkitUserSelect: "none",
-                        MozUserSelect: "none",
-                        msUserSelect: "none",
+                    <PDFViewer 
+                      document={{
+                        id: document.id,
+                        title: document.title,
+                        pdfUrl: signedUrl,
+                        category: document.category,
+                        keywords: [],
+                        description: "",
+                        publishedAt: "",
+                        views: 0,
+                        likes: 0,
+                        comments: 0,
                       }}
                     />
                   ) : (

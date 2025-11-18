@@ -144,17 +144,13 @@ serve(async (req) => {
       },
     })
 
-    // Log the checkout session creation
-    await supabase.rpc('log_audit_event', {
-      p_action: 'checkout_session_created',
-      p_resource_type: 'subscription',
-      p_resource_id: session.id,
-      p_details: {
-        plan_id,
-        plan_name: plan.name,
-        amount: plan.price,
-        currency: 'BRL',
-      },
+    // Log the checkout session creation (removed RPC call as log_audit_event doesn't exist)
+    console.log('Checkout session created:', {
+      session_id: session.id,
+      plan_id: planId,
+      plan_name: plan.name,
+      amount: plan.price,
+      currency: 'BRL',
     })
 
     return new Response(

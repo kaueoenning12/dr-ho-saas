@@ -8,7 +8,16 @@ export function AdminMetrics() {
   const { data: metrics, isLoading, error } = useAdminMetrics();
 
   if (isLoading) {
-    return <StatsCardSkeletonGrid count={6} />;
+    return (
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <StatsCardSkeleton />
+        <StatsCardSkeleton />
+        <StatsCardSkeleton />
+        <StatsCardSkeleton />
+        <StatsCardSkeleton />
+        <StatsCardSkeleton />
+      </div>
+    );
   }
 
   if (error || !metrics) {

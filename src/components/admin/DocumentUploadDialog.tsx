@@ -462,8 +462,7 @@ export function DocumentUploadDialog({ onSuccess }: DocumentUploadDialogProps) {
                     </p>
                     <Input
                       type="file"
-                      webkitdirectory=""
-                      directory=""
+                      {...({ webkitdirectory: "", directory: "" } as any)}
                       multiple
                       onChange={(e) => {
                         if (e.target.files) handleFolderSelect(e.target.files);

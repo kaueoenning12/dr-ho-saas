@@ -124,35 +124,6 @@ export type Database = {
           },
         ]
       }
-      document_likes: {
-        Row: {
-          created_at: string
-          document_id: string
-          id: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          document_id: string
-          id?: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          document_id?: string
-          id?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "document_likes_document_id_fkey"
-            columns: ["document_id"]
-            isOneToOne: false
-            referencedRelation: "documents"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       document_folders: {
         Row: {
           author_id: string | null
@@ -191,44 +162,31 @@ export type Database = {
           },
         ]
       }
-      document_unlocks: {
+      document_likes: {
         Row: {
           created_at: string
           document_id: string
           id: string
-          rating: number
-          unlocked_at: string
           user_id: string
         }
         Insert: {
           created_at?: string
           document_id: string
           id?: string
-          rating: number
-          unlocked_at?: string
           user_id: string
         }
         Update: {
           created_at?: string
           document_id?: string
           id?: string
-          rating?: number
-          unlocked_at?: string
           user_id?: string
         }
         Relationships: [
           {
-            foreignKeyName: "document_unlocks_document_id_fkey"
+            foreignKeyName: "document_likes_document_id_fkey"
             columns: ["document_id"]
             isOneToOne: false
             referencedRelation: "documents"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "document_unlocks_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
             referencedColumns: ["id"]
           },
         ]
@@ -237,7 +195,7 @@ export type Database = {
         Row: {
           document_id: string
           id: string
-          ip_address: unknown | null
+          ip_address: unknown
           user_agent: string | null
           user_id: string | null
           viewed_at: string
@@ -245,7 +203,7 @@ export type Database = {
         Insert: {
           document_id: string
           id?: string
-          ip_address?: unknown | null
+          ip_address?: unknown
           user_agent?: string | null
           user_id?: string | null
           viewed_at?: string
@@ -253,7 +211,7 @@ export type Database = {
         Update: {
           document_id?: string
           id?: string
-          ip_address?: unknown | null
+          ip_address?: unknown
           user_agent?: string | null
           user_id?: string | null
           viewed_at?: string
@@ -277,14 +235,12 @@ export type Database = {
           file_size: number | null
           folder_path: string | null
           id: string
-          is_premium: boolean
           is_published: boolean
           keywords: string[] | null
           parent_folder_id: string | null
           pdf_url: string
-          preview_image_url: string | null
           published_at: string
-          search_vector: unknown | null
+          search_vector: unknown
           thumbnail_url: string | null
           title: string
           updated_at: string
@@ -297,14 +253,12 @@ export type Database = {
           file_size?: number | null
           folder_path?: string | null
           id?: string
-          is_premium?: boolean
           is_published?: boolean
           keywords?: string[] | null
           parent_folder_id?: string | null
           pdf_url: string
-          preview_image_url?: string | null
           published_at?: string
-          search_vector?: unknown | null
+          search_vector?: unknown
           thumbnail_url?: string | null
           title: string
           updated_at?: string
@@ -317,14 +271,12 @@ export type Database = {
           file_size?: number | null
           folder_path?: string | null
           id?: string
-          is_premium?: boolean
           is_published?: boolean
           keywords?: string[] | null
           parent_folder_id?: string | null
           pdf_url?: string
-          preview_image_url?: string | null
           published_at?: string
-          search_vector?: unknown | null
+          search_vector?: unknown
           thumbnail_url?: string | null
           title?: string
           updated_at?: string
@@ -643,22 +595,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      get_document_stats: {
-        Args: Record<PropertyKey, never>
-        Returns: Json
-      }
-      get_forum_stats: {
-        Args: Record<PropertyKey, never>
-        Returns: Json
-      }
-      get_platform_stats: {
-        Args: Record<PropertyKey, never>
-        Returns: Json
-      }
-      get_user_stats: {
-        Args: Record<PropertyKey, never>
-        Returns: Json
-      }
+      get_document_stats: { Args: never; Returns: Json }
+      get_forum_stats: { Args: never; Returns: Json }
+      get_platform_stats: { Args: never; Returns: Json }
+      get_user_stats: { Args: never; Returns: Json }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

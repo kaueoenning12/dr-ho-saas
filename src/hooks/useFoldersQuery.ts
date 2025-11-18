@@ -99,27 +99,35 @@ export function useRootContents() {
       }
 
       // Get root documents (no parent folder)
-      // Don't filter by parent_folder_id to avoid errors if column doesn't exist
-      const { data: documents, error: documentsError } = await supabase
-        .from("documents")
-        .select("*")
-        .eq("is_published", true)
-        .order("published_at", { ascending: false });
+      let documents = [];
+      try {
+        const { data: documentsData, error: documentsError } = await supabase
+          .from("documents")
+          .select("*")
+          .eq("is_published", true)
+          .is("parent_folder_id", null)  // ✅ Filtrar apenas documentos raiz
+          .order("published_at", { ascending: false });
 
-      if (documentsError) {
-        // If error is about missing column, return empty documents
-        if (documentsError.code === '42703' || documentsError.message?.includes('parent_folder_id')) {
-          return {
-            folders,
-            documents: [],
-          };
+        if (documentsError) {
+          // Se erro é sobre coluna faltando, retornar vazio
+          if (documentsError.code === '42703' || 
+              documentsError.message?.includes('parent_folder_id')) {
+            console.warn('[Root Contents] Coluna parent_folder_id não existe, retornando documentos vazios');
+            return { folders, documents: [] };
+          }
+          throw documentsError;
         }
-        throw documentsError;
+        
+        documents = documentsData || [];
+      } catch (error: any) {
+        console.error('[Root Contents] Erro ao buscar documentos raiz:', error);
+        // Retornar apenas pastas em caso de erro
+        return { folders, documents: [] };
       }
 
       return {
         folders,
-        documents: documents || [],
+        documents,
       };
     },
   });

@@ -28,11 +28,9 @@ export const getStripe = async () => {
 // Helper function to redirect to checkout
 export const redirectToCheckout = async (sessionId: string) => {
   const stripe = await getStripe();
-  const { error } = await stripe.redirectToCheckout({ sessionId });
-  
-  if (error) {
-    throw new Error(error.message || 'Failed to redirect to checkout');
-  }
+  // Use the checkout session URL directly
+  const checkoutUrl = `https://checkout.stripe.com/c/pay/${sessionId}`;
+  window.location.href = checkoutUrl;
 };
 
 // Helper function to redirect to customer portal

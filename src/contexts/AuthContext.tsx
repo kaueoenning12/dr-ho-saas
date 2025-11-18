@@ -83,24 +83,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       
       const [profileResult, roleResult, subscriptionResult] = await Promise.allSettled([
         // Profile query
-        withTimeout(
-          supabase
+        (async () => {
+          const query = supabase
             .from("profiles")
             .select("*")
             .eq("user_id", supabaseUser.id)
-            .maybeSingle()
-        ),
+            .maybeSingle();
+          return await withTimeout(query as unknown as Promise<any>);
+        })(),
         // Role query
-        withTimeout(
-          supabase
+        (async () => {
+          const query = supabase
             .from("user_roles")
             .select("role")
             .eq("user_id", supabaseUser.id)
-            .maybeSingle()
-        ),
+            .maybeSingle();
+          return await withTimeout(query as unknown as Promise<any>);
+        })(),
         // Subscription query
-        withTimeout(
-          supabase
+        (async () => {
+          const query = supabase
             .from("user_subscriptions")
             .select(`
               *,
@@ -111,8 +113,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               )
             `)
             .eq("user_id", supabaseUser.id)
-            .maybeSingle()
-        )
+            .maybeSingle();
+          return await withTimeout(query as unknown as Promise<any>);
+        })()
       ]);
 
       const metadata = supabaseUser.user_metadata as { name?: string; number?: string };
@@ -123,8 +126,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       // Process profile
       let profileData: Profile | null = null;
-      if (profileResult.status === 'fulfilled' && profileResult.value.data) {
-        profileData = profileResult.value.data;
+      if (profileResult.status === 'fulfilled' && (profileResult.value as any).data) {
+        profileData = (profileResult.value as any).data;
         if (sanitizedMetadataNumber && profileData.number !== sanitizedMetadataNumber) {
           const { data: updatedProfile, error: updateError } = await supabase
             .from("profiles")
@@ -136,7 +139,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             profileData = updatedProfile;
           }
         }
-      } else if (profileResult.status === 'fulfilled' && profileResult.value.error?.code === 'PGRST116') {
+      } else if (profileResult.status === 'fulfilled' && (profileResult.value as any).error?.code === 'PGRST116') {
         // Create profile if not exists
         const { data: newProfile } = await supabase
           .from("profiles")
@@ -161,10 +164,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       let roleData: any = null;
       
       if (roleResult.status === 'fulfilled') {
-        if (roleResult.value.data) {
+        if ((roleResult.value as any).data) {
           // Dados encontrados com sucesso
-          roleData = roleResult.value.data;
-        } else if (roleResult.value.error?.code === 'PGRST116') {
+          roleData = (roleResult.value as any).data;
+        } else if ((roleResult.value as any).error?.code === 'PGRST116') {
           // Role não encontrado - criar como "user" apenas neste caso
           console.log("ℹ️ [AUTH] Role não encontrado, criando role padrão 'user'");
           const { data: newRole } = await supabase.from("user_roles").insert({
@@ -172,9 +175,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             role: "user",
           }).select().single();
           roleData = newRole || { role: "user" };
-        } else if (roleResult.value.error) {
+        } else if ((roleResult.value as any).error) {
           // Erro de RLS ou outro erro - não usar fallback, manter role atual ou tentar novamente
-          console.error("❌ [AUTH] Erro ao buscar role:", roleResult.value.error);
+          console.error("❌ [AUTH] Erro ao buscar role:", (roleResult.value as any).error);
           // Se houver role atual, usar ele; caso contrário, usar fallback apenas se não houver outro erro
           if (currentUserRole) {
             roleData = { role: currentUserRole };
@@ -204,10 +207,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
       // Process subscription
       let subscriptionData = null;
-      if (subscriptionResult.status === 'fulfilled' && subscriptionResult.value.data) {
-        subscriptionData = subscriptionResult.value.data;
-      } else if (subscriptionResult.status === 'fulfilled' && subscriptionResult.value.error) {
-        console.warn("⚠️ [AUTH] Erro retornado pela query de subscription:", subscriptionResult.value.error);
+      if (subscriptionResult.status === 'fulfilled' && (subscriptionResult.value as any).data) {
+        subscriptionData = (subscriptionResult.value as any).data;
+      } else if (subscriptionResult.status === 'fulfilled' && (subscriptionResult.value as any).error) {
+        console.warn("⚠️ [AUTH] Erro retornado pela query de subscription:", (subscriptionResult.value as any).error);
       } else if (subscriptionResult.status === 'rejected') {
         if (isTimeoutError(subscriptionResult.reason)) {
           console.warn("⌛ [AUTH] Timeout ao buscar subscription, mantendo dados anteriores.");
@@ -240,6 +243,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         // Não atualizar, apenas deixar como está
       } else {
         // Apenas para casos onde realmente não há dados anteriores
+        const metadata = supabaseUser.user_metadata as { name?: string; number?: string };
+        const sanitizedMetadataNumber =
+          metadata?.number && typeof metadata.number === "string"
+            ? metadata.number.replace(/\D/g, "")
+            : undefined;
         const fallbackUser = {
           id: supabaseUser.id,
           email: supabaseUser.email || "",

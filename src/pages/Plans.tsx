@@ -303,7 +303,7 @@ export default function Plans() {
 
                 <CardContent className="px-6 pb-6">
                   <ul className="space-y-3">
-                    {primaryPlan?.features && parseFeatures(primaryPlan.features).map((feature: string, index: number) => (
+                    {primaryPlan?.features && parseFeatures(String(primaryPlan.features)).map((feature: string, index: number) => (
                       <li key={index} className="flex items-start gap-3">
                         <Check className="h-5 w-5 text-cyan shrink-0 mt-0.5" />
                         <span className="text-sm">{feature}</span>

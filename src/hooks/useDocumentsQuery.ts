@@ -2,6 +2,27 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
+/**
+ * Generate signed URL for private document
+ */
+async function getSignedUrl(filePath: string, expiresIn: number = 3600): Promise<string> {
+  try {
+    const { data, error } = await supabase.storage
+      .from('documents')
+      .createSignedUrl(filePath, expiresIn);
+    
+    if (error) {
+      console.error('[Documents] Error generating signed URL:', error);
+      return filePath; // Fallback to original path
+    }
+    
+    return data?.signedUrl || filePath;
+  } catch (error) {
+    console.error('[Documents] Exception generating signed URL:', error);
+    return filePath;
+  }
+}
+
 export interface DocumentFilters {
   category?: string;
   searchTerm?: string;
@@ -63,7 +84,16 @@ export function useDocuments(filters?: DocumentFilters) {
         throw error;
       }
       
-      return data || [];
+      // Generate signed URLs for all documents
+      const documents = data || [];
+      const documentsWithSignedUrls = await Promise.all(
+        documents.map(async (doc) => {
+          const signedUrl = await getSignedUrl(doc.pdf_url);
+          return { ...doc, pdf_url: signedUrl };
+        })
+      );
+      
+      return documentsWithSignedUrls;
     },
   });
 }

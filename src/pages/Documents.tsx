@@ -36,19 +36,22 @@ export default function Documents() {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  const { data: documents = [], isLoading } = useDocuments({
-    category: selectedCategory,
-    searchTerm: searchTerm,
-    showOnlyNew: showOnlyNew,
-    // Don't filter by parentFolderId if columns don't exist yet
-    // parentFolderId: null, // Only show root level documents when not in folder view
-  });
-
+  // Primeiro buscar conteúdo da raiz para saber se há pastas
   const { data: rootContents, isLoading: isLoadingRootContents } = useRootContents();
   const { data: unreadCount = 0, isLoading: isLoadingUnreadCount } = useUnreadCount();
   
   // Check if we should show folder navigator (if there are folders at root level)
   const hasFolders = rootContents && rootContents.folders.length > 0;
+
+  // Depois usar hasFolders para filtrar documentos corretamente
+  const { data: documents = [], isLoading } = useDocuments({
+    category: selectedCategory,
+    searchTerm: searchTerm,
+    showOnlyNew: showOnlyNew,
+    // Se há pastas, não buscar documentos aqui (FolderNavigator gerencia)
+    // Se não há pastas, buscar apenas documentos na raiz (parent_folder_id IS NULL)
+    parentFolderId: hasFolders ? undefined : null,
+  });
 
   const titleReveal = useScrollReveal<HTMLDivElement>({ threshold: 0.3 });
 
@@ -193,8 +196,10 @@ export default function Documents() {
                 Documentos de Segurança do Trabalho
               </h1>
               <p className="text-muted-foreground mt-0.5 sm:mt-1 text-xs sm:text-[13px] md:text-[14px] font-light">
-                {documents.length} documento{documents.length !== 1 ? "s" : ""} disponível
-                {documents.length !== 1 ? "is" : ""}
+                {hasFolders 
+                  ? `${rootContents.folders.length} pasta${rootContents.folders.length !== 1 ? "s" : ""} disponível${rootContents.folders.length !== 1 ? "is" : ""}`
+                  : `${documents.length} documento${documents.length !== 1 ? "s" : ""} disponível${documents.length !== 1 ? "is" : ""}`
+                }
               </p>
             </div>
 

@@ -63,12 +63,14 @@ export function useDocuments(filters?: DocumentFilters) {
 
       // Only apply folder filters if the columns exist (to avoid errors before migration)
       // Skip folder filters if not provided to avoid errors
-      if (filters?.folderId !== undefined && filters.folderId !== null) {
-        query = query.eq("parent_folder_id", filters.folderId);
-      } else if (filters?.parentFolderId !== undefined && filters.parentFolderId !== null) {
-        query = query.eq("parent_folder_id", filters.parentFolderId);
-      }
-      // Note: We don't filter by null parent_folder_id to avoid errors if column doesn't exist
+    if (filters?.folderId !== undefined && filters.folderId !== null) {
+      query = query.eq("parent_folder_id", filters.folderId);
+    } else if (filters?.parentFolderId !== undefined && filters.parentFolderId !== null) {
+      query = query.eq("parent_folder_id", filters.parentFolderId);
+    } else if (filters?.parentFolderId === null) {
+      // Filtrar apenas documentos na raiz (sem pasta pai)
+      query = query.is("parent_folder_id", null);
+    }
       // This means all documents will be shown until migration is run
 
       const { data, error } = await query;

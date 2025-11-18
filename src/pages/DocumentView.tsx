@@ -75,7 +75,7 @@ export default function DocumentView() {
     const handleKeyDown = (e: KeyboardEvent) => {
       const key = e.key.toLowerCase();
       const isCtrlOrMeta = e.ctrlKey || e.metaKey;
-      const forbiddenCtrlKeys = ["c", "a", "p", "s", "u"];
+      const forbiddenCtrlKeys = ["c", "a", "p", "s", "u", "d", "j"]; // Adiciona "d" (download) e "j" (downloads do Chrome)
 
       if (isCtrlOrMeta && forbiddenCtrlKeys.includes(key)) {
         e.preventDefault();
@@ -83,12 +83,14 @@ export default function DocumentView() {
         return;
       }
 
-      if (isCtrlOrMeta && e.shiftKey && (key === "i" || key === "p" || key === "s")) {
+      // Bloquear Ctrl+Shift+I (DevTools), Ctrl+Shift+J (Console), Ctrl+Shift+S (Save Page)
+      if (isCtrlOrMeta && e.shiftKey && (key === "i" || key === "j" || key === "p" || key === "s")) {
         e.preventDefault();
         toast.error("Esta ação está desabilitada para proteção de conteúdo.");
         return;
       }
 
+      // Bloquear F12 (DevTools), F11 (Fullscreen)
       if (e.key === "F12" || e.key === "F11") {
         e.preventDefault();
       }
@@ -270,7 +272,7 @@ export default function DocumentView() {
               </div>
             )}
 
-            {isDocumentLoading || isUnlockLoading ? (
+            {(isDocumentLoading || isUnlockLoading || isLoadingSignedUrl) ? (
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="text-center space-y-3">
                   <Loader2 className="h-10 w-10 animate-spin text-cyan mx-auto" />
@@ -375,12 +377,13 @@ export default function DocumentView() {
                 </div>
 
                 <div className="relative w-full h-full overflow-auto">
-                  {document.pdf_url ? (
+                  {signedUrl ? (
                     <iframe
-                      src={`${document.pdf_url}#toolbar=0&navpanes=0&scrollbar=1&view=FitH`}
+                      src={`${signedUrl}#toolbar=0&navpanes=0&scrollbar=0&view=FitH`}
                       className="w-full h-full border-none select-none"
                       title={document.title}
                       onLoad={() => setIsPdfLoading(false)}
+                      sandbox="allow-same-origin allow-scripts"
                       aria-hidden="true"
                       tabIndex={-1}
                       style={{
@@ -394,12 +397,10 @@ export default function DocumentView() {
                   ) : (
                     <div className="absolute inset-0 flex items-center justify-center">
                       <div className="text-center space-y-2">
+                        <Loader2 className="h-6 w-6 animate-spin text-cyan mx-auto" />
                         <p className="text-sm font-medium text-muted-foreground">
-                          Este documento não possui um PDF associado.
+                          Gerando acesso seguro ao documento...
                         </p>
-                        <Button variant="secondary" size="sm" onClick={() => navigate(-1)}>
-                          Voltar
-                        </Button>
                       </div>
                     </div>
                   )}

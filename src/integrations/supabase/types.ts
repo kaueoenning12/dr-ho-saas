@@ -153,6 +153,44 @@ export type Database = {
           },
         ]
       }
+      document_folders: {
+        Row: {
+          author_id: string | null
+          created_at: string
+          id: string
+          name: string
+          parent_folder_id: string | null
+          path: string
+          updated_at: string
+        }
+        Insert: {
+          author_id?: string | null
+          created_at?: string
+          id?: string
+          name: string
+          parent_folder_id?: string | null
+          path: string
+          updated_at?: string
+        }
+        Update: {
+          author_id?: string | null
+          created_at?: string
+          id?: string
+          name?: string
+          parent_folder_id?: string | null
+          path?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_folders_parent_folder_id_fkey"
+            columns: ["parent_folder_id"]
+            isOneToOne: false
+            referencedRelation: "document_folders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       document_views: {
         Row: {
           document_id: string
@@ -195,9 +233,11 @@ export type Database = {
           created_at: string
           description: string
           file_size: number | null
+          folder_path: string | null
           id: string
           is_published: boolean
           keywords: string[] | null
+          parent_folder_id: string | null
           pdf_url: string
           published_at: string
           search_vector: unknown | null
@@ -211,9 +251,11 @@ export type Database = {
           created_at?: string
           description: string
           file_size?: number | null
+          folder_path?: string | null
           id?: string
           is_published?: boolean
           keywords?: string[] | null
+          parent_folder_id?: string | null
           pdf_url: string
           published_at?: string
           search_vector?: unknown | null
@@ -227,9 +269,11 @@ export type Database = {
           created_at?: string
           description?: string
           file_size?: number | null
+          folder_path?: string | null
           id?: string
           is_published?: boolean
           keywords?: string[] | null
+          parent_folder_id?: string | null
           pdf_url?: string
           published_at?: string
           search_vector?: unknown | null
@@ -237,7 +281,15 @@ export type Database = {
           title?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "documents_parent_folder_id_fkey"
+            columns: ["parent_folder_id"]
+            isOneToOne: false
+            referencedRelation: "document_folders"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       forum_categories: {
         Row: {

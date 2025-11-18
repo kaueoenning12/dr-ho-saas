@@ -49,8 +49,9 @@ function extractFilePathFromUrl(url: string): string | null {
     const pathMatch = urlObj.pathname.match(/\/documents\/(.+)$/);
     if (pathMatch && pathMatch[1]) {
       // Decode the path in case it's URL encoded
+      // Return path relative to bucket (without 'documents/' prefix)
       const decodedPath = decodeURIComponent(pathMatch[1]);
-      return `documents/${decodedPath}`;
+      return decodedPath;
     }
     return null;
   } catch (error) {
@@ -68,7 +69,8 @@ export async function uploadPDFFile(
 ): Promise<{ publicUrl: string; filePath: string; fileSize: number }> {
   const fileExt = file.name.split('.').pop();
   const fileName = `${userId}-${Date.now()}.${fileExt}`;
-  const filePath = `documents/${fileName}`;
+  // Path should be relative to bucket, without bucket name
+  const filePath = fileName;
 
   const { error: uploadError } = await supabase.storage
     .from('documents')

@@ -30,21 +30,31 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Upload, FileText, Loader2 } from "lucide-react";
+import { Upload, FileText, Loader2, Folder } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { DOCUMENT_CATEGORIES, MAX_FILE_SIZE, ALLOWED_FILE_TYPES } from "@/lib/constants";
+import { DOCUMENT_CATEGORIES, MAX_FILE_SIZE } from "@/lib/constants";
 import { supabase } from "@/integrations/supabase/client";
 import { useCreateDocument } from "@/hooks/useDocumentsQuery";
+import { uploadFolderStructure } from "@/lib/services/folderUploadService";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { uploadWithFetchDirect, setupRequestInterception } from "@/lib/services/storageUploadHelper";
+import { useEffect } from "react";
 
 
 const formSchema = z.object({
-  title: z.string().min(3, "Title must be at least 3 characters"),
+  title: z.string().optional(),
   description: z.string().min(10, "Description must be at least 10 characters"),
   category: z.string().min(1, "Please select a category"),
   keywords: z.string().min(1, "Add at least one keyword"),
   isPublished: z.boolean().default(true),
+}).refine((data) => {
+  // Title is required only for single file upload
+  return true; // We'll handle validation in the component
+}, {
+  message: "Title is required for single file upload",
+  path: ["title"],
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -55,7 +65,16 @@ interface DocumentUploadDialogProps {
 
 export function DocumentUploadDialog({ onSuccess }: DocumentUploadDialogProps) {
   const [open, setOpen] = useState(false);
+  
+  // Configurar interceptação de requisições para debug
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      setupRequestInterception();
+    }
+  }, []);
+  const [uploadType, setUploadType] = useState<"file" | "folder">("file");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
   const [uploading, setUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const { toast } = useToast();
@@ -72,27 +91,38 @@ export function DocumentUploadDialog({ onSuccess }: DocumentUploadDialogProps) {
       isPublished: true,
     },
   });
+  
+  const resetForm = () => {
+    form.reset();
+    setSelectedFile(null);
+    setSelectedFiles(null);
+    setUploadType("file");
+  };
 
   const handleFileSelect = (file: File) => {
-    if (!ALLOWED_FILE_TYPES.includes(file.type)) {
-      toast({
-        title: "Invalid file type",
-        description: "Please upload a PDF file",
-        variant: "destructive",
-      });
-      return;
-    }
-
     if (file.size > MAX_FILE_SIZE) {
       toast({
-        title: "File too large",
-        description: "Please upload a file smaller than 10MB",
+        title: "Arquivo muito grande",
+        description: `Por favor, faça upload de um arquivo menor que ${(MAX_FILE_SIZE / 1024 / 1024).toFixed(2)}MB`,
         variant: "destructive",
       });
       return;
     }
 
     setSelectedFile(file);
+  };
+
+  const handleFolderSelect = (files: FileList) => {
+    if (files.length === 0) {
+      toast({
+        title: "Pasta vazia",
+        description: "A pasta selecionada está vazia",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSelectedFiles(files);
   };
 
   const handleDrag = (e: React.DragEvent) => {
@@ -110,79 +140,189 @@ export function DocumentUploadDialog({ onSuccess }: DocumentUploadDialogProps) {
     e.stopPropagation();
     setDragActive(false);
 
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      handleFileSelect(e.dataTransfer.files[0]);
+    if (e.dataTransfer.files) {
+      if (uploadType === "folder") {
+        handleFolderSelect(e.dataTransfer.files);
+      } else {
+        if (e.dataTransfer.files[0]) {
+          handleFileSelect(e.dataTransfer.files[0]);
+        }
+      }
     }
   };
 
   const onSubmit = async (data: FormData) => {
-    if (!selectedFile) {
-      toast({
-        title: "Nenhum arquivo selecionado",
-        description: "Por favor, faça upload de um arquivo PDF",
-        variant: "destructive",
-      });
-      return;
-    }
-
     if (!user) return;
+
+    // Validate based on upload type
+    if (uploadType === "file") {
+      if (!selectedFile) {
+        toast({
+          title: "Nenhum arquivo selecionado",
+          description: "Por favor, selecione um arquivo",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (!data.title || data.title.length < 3) {
+        toast({
+          title: "Título inválido",
+          description: "O título deve ter pelo menos 3 caracteres",
+          variant: "destructive",
+        });
+        return;
+      }
+    } else {
+      if (!selectedFiles || selectedFiles.length === 0) {
+        toast({
+          title: "Nenhuma pasta selecionada",
+          description: "Por favor, selecione uma pasta",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
 
     setUploading(true);
 
     try {
-      // Upload file to Supabase Storage
-      const fileExt = selectedFile.name.split('.').pop();
-      const fileName = `${user.id}-${Date.now()}.${fileExt}`;
-      const filePath = `documents/${fileName}`;
-
-      const { error: uploadError, data: uploadData } = await supabase.storage
-        .from('documents')
-        .upload(filePath, selectedFile, {
-          cacheControl: '3600',
-          upsert: false
-        });
-
-      if (uploadError) {
-        console.error("Upload error:", uploadError);
-        throw uploadError;
-      }
-
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('documents')
-        .getPublicUrl(filePath);
-
-      // Create document record
       const keywordsArray = data.keywords
         .split(",")
         .map((k) => k.trim())
         .filter((k) => k.length > 0);
 
-      createDocument.mutate({
-        title: data.title,
-        description: data.description,
-        category: data.category,
-        keywords: keywordsArray,
-        pdf_url: publicUrl,
-        author_id: user.id,
-        is_published: data.isPublished,
-        file_size: selectedFile.size,
-      });
+      if (uploadType === "file" && selectedFile) {
+        // Debug: Verificar autenticação antes do upload
+        let { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
+        // Se não há sessão, tentar refresh
+        if (!session) {
+          console.warn('[File Upload] Sem sessão, tentando refresh...');
+          const { data: { session: refreshedSession } } = await supabase.auth.refreshSession();
+          if (refreshedSession) {
+            session = refreshedSession;
+          } else {
+            throw new Error('Não autenticado. Por favor, faça login novamente.');
+          }
+        }
 
-      toast({
-        title: "Sucesso!",
-        description: `Documento "${data.title}" foi ${data.isPublished ? "publicado" : "salvo como rascunho"}.`,
-      });
+        console.log('[File Upload] Verificando autenticação:', {
+          hasSession: !!session,
+          userId: session?.user?.id,
+          expectedUserId: user.id,
+          sessionError: sessionError?.message,
+          hasToken: !!session?.access_token,
+        });
 
-      form.reset();
-      setSelectedFile(null);
+        // Verificar bucket (não bloquear se não conseguir listar - pode ser problema de permissão)
+        try {
+          const { data: buckets, error: bucketListError } = await supabase.storage.listBuckets();
+          if (bucketListError) {
+            console.warn('[File Upload] Não foi possível listar buckets (pode ser normal):', bucketListError);
+          } else {
+            const documentsBucket = buckets?.find(b => b.id === 'documents');
+            console.log('[File Upload] Bucket encontrado:', !!documentsBucket);
+          }
+        } catch (error) {
+          console.warn('[File Upload] Erro ao verificar bucket (continuando mesmo assim):', error);
+        }
+
+        // Single file upload
+        const fileExt = selectedFile.name.split('.').pop();
+        const fileName = `${user.id}-${Date.now()}.${fileExt}`;
+        // Path should be relative to bucket, without bucket name
+        const filePath = fileName;
+
+        // Verificar token explicitamente
+        if (!session?.access_token) {
+          throw new Error('Token de autenticação não encontrado. Por favor, faça login novamente.');
+        }
+
+        console.log('[File Upload] Fazendo upload:', {
+          bucket: 'documents',
+          filePath,
+          fileSize: selectedFile.size,
+          hasToken: !!session?.access_token,
+          tokenPreview: session?.access_token ? `${session.access_token.substring(0, 20)}...` : 'missing',
+        });
+
+        // Tentar upload direto com fetch (mais simples e direto)
+        let uploadError: Error | null = null;
+        
+        try {
+          console.log('[File Upload] Tentando upload com fetch direto...');
+          await uploadWithFetchDirect(selectedFile, filePath, 'documents');
+          console.log('[File Upload] ✅ Upload bem-sucedido!');
+        } catch (error: any) {
+          console.error('[File Upload] ❌ Erro no upload:', error);
+          
+          // Interpretar erro e dar mensagem útil
+          const errorMsg = error.message || '';
+          if (errorMsg.includes('403') || errorMsg.includes('denied') || errorMsg.includes('RLS')) {
+            throw new Error('Acesso negado ao storage. Execute FIX_STORAGE_FORCE_DISABLE_RLS.sql no Supabase SQL Editor para desabilitar RLS e permitir uploads.');
+          } else if (errorMsg.includes('404') || errorMsg.includes('not found') || errorMsg.includes('bucket')) {
+            throw new Error('Bucket "documents" não encontrado. Execute FIX_STORAGE_FORCE_DISABLE_RLS.sql no Supabase SQL Editor para criar o bucket.');
+          } else {
+            throw new Error(`Erro no upload: ${errorMsg}. Execute FIX_STORAGE_FORCE_DISABLE_RLS.sql no Supabase SQL Editor.`);
+          }
+        }
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('documents')
+          .getPublicUrl(filePath);
+
+        createDocument.mutate({
+          title: data.title!,
+          description: data.description,
+          category: data.category,
+          keywords: keywordsArray,
+          pdf_url: publicUrl,
+          author_id: user.id,
+          is_published: data.isPublished,
+          file_size: selectedFile.size,
+        });
+
+        toast({
+          title: "Sucesso!",
+          description: `Documento "${data.title}" foi ${data.isPublished ? "publicado" : "salvo como rascunho"}.`,
+        });
+      } else if (uploadType === "folder" && selectedFiles) {
+        // Folder upload
+        const result = await uploadFolderStructure(selectedFiles, user.id, {
+          category: data.category,
+          description: data.description,
+          keywords: keywordsArray,
+          isPublished: data.isPublished,
+        });
+
+        if (result.errors.length > 0) {
+          const errorDetails = result.errors.slice(0, 3).join('; ');
+          const moreErrors = result.errors.length > 3 ? ` e mais ${result.errors.length - 3} erro(s)` : '';
+          
+          toast({
+            title: "Upload concluído com erros",
+            description: `${result.documentsCreated} documento(s) criado(s). ${result.errors.length} erro(s) encontrado(s). ${errorDetails}${moreErrors}`,
+            variant: "default",
+            duration: 10000, // Show longer to read errors
+          });
+          console.error("Upload errors:", result.errors);
+        } else {
+          toast({
+            title: "Sucesso!",
+            description: `${result.documentsCreated} documento(s) criado(s) em ${result.foldersCreated.length} pasta(s).`,
+          });
+        }
+      }
+
+      resetForm();
       setOpen(false);
       onSuccess?.();
     } catch (error) {
       console.error("Upload error:", error);
       toast({
         title: "Falha no upload",
-        description: error instanceof Error ? error.message : "Ocorreu um erro ao fazer upload do documento",
+        description: error instanceof Error ? error.message : "Ocorreu um erro ao fazer upload",
         variant: "destructive",
       });
     } finally {
@@ -202,13 +342,27 @@ export function DocumentUploadDialog({ onSuccess }: DocumentUploadDialogProps) {
         <DialogHeader className="pb-4">
           <DialogTitle className="text-[20px] font-semibold tracking-tight text-navy">Upload New Document</DialogTitle>
           <DialogDescription className="text-[14px] font-light mt-1 text-navy/60">
-            Add a new safety document to the library
+            {uploadType === "file" 
+              ? "Adicione um novo documento de segurança do trabalho à biblioteca. Qualquer tipo de arquivo é permitido."
+              : "Faça upload de uma pasta inteira com documentos. A estrutura de pastas será preservada. Qualquer tipo de arquivo é permitido."}
           </DialogDescription>
         </DialogHeader>
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            {/* File Upload Area */}
+            {/* Upload Type Selection */}
+            <Tabs value={uploadType} onValueChange={(v) => {
+              setUploadType(v as "file" | "folder");
+              setSelectedFile(null);
+              setSelectedFiles(null);
+            }}>
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="file">Arquivo Único</TabsTrigger>
+                <TabsTrigger value="folder">Pasta</TabsTrigger>
+              </TabsList>
+            </Tabs>
+
+            {/* File/Folder Upload Area */}
             <div
               onDragEnter={handleDrag}
               onDragLeave={handleDrag}
@@ -220,73 +374,127 @@ export function DocumentUploadDialog({ onSuccess }: DocumentUploadDialogProps) {
                   : "border-border/60 hover:border-accent/40 hover:bg-muted/20"
               }`}
             >
-              {selectedFile ? (
-                <div className="flex items-center justify-center gap-4">
-                  <div className="h-12 w-12 rounded-lg bg-accent/10 flex items-center justify-center">
-                    <FileText className="h-6 w-6 text-accent stroke-[1.5]" />
+              {uploadType === "file" ? (
+                selectedFile ? (
+                  <div className="flex items-center justify-center gap-4">
+                    <div className="h-12 w-12 rounded-lg bg-accent/10 flex items-center justify-center">
+                      <FileText className="h-6 w-6 text-accent stroke-[1.5]" />
+                    </div>
+                    <div className="text-left flex-1 min-w-0">
+                      <p className="font-medium text-[15px] text-foreground truncate">{selectedFile.name}</p>
+                      <p className="text-[13px] text-muted-foreground font-light mt-0.5">
+                        {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSelectedFile(null)}
+                      className="font-medium text-[13px] rounded-lg border-border/60"
+                    >
+                      Alterar
+                    </Button>
                   </div>
-                  <div className="text-left flex-1 min-w-0">
-                    <p className="font-medium text-[15px] text-foreground truncate">{selectedFile.name}</p>
-                    <p className="text-[13px] text-muted-foreground font-light mt-0.5">
-                      {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                ) : (
+                  <>
+                    <Upload className="h-12 w-12 mx-auto mb-4 text-muted-foreground/40 stroke-[1.5]" />
+                    <p className="text-[15px] font-medium mb-1 text-foreground">
+                      Arraste seu arquivo aqui, ou clique para escolher
                     </p>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setSelectedFile(null)}
-                    className="font-medium text-[13px] rounded-lg border-border/60"
-                  >
-                    Alterar
-                  </Button>
-                </div>
+                    <p className="text-[13px] text-muted-foreground font-light mb-6">
+                      Qualquer tipo de arquivo | Tamanho máximo: {(MAX_FILE_SIZE / 1024 / 1024).toFixed(2)}MB
+                    </p>
+                    <Input
+                      type="file"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleFileSelect(file);
+                      }}
+                      className="hidden"
+                      id="file-upload"
+                    />
+                    <Button type="button" variant="outline" asChild className="font-medium rounded-lg">
+                      <label htmlFor="file-upload" className="cursor-pointer">
+                        Selecionar Arquivo
+                      </label>
+                    </Button>
+                  </>
+                )
               ) : (
-                <>
-                  <Upload className="h-12 w-12 mx-auto mb-4 text-muted-foreground/40 stroke-[1.5]" />
-                  <p className="text-[15px] font-medium mb-1 text-foreground">
-                    Arraste seu PDF aqui, ou clique para escolher
-                  </p>
-                  <p className="text-[13px] text-muted-foreground font-light mb-6">
-                    Tamanho máximo: 10MB
-                  </p>
-                  <Input
-                    type="file"
-                    accept=".pdf"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) handleFileSelect(file);
-                    }}
-                    className="hidden"
-                    id="file-upload"
-                  />
-                  <Button type="button" variant="outline" asChild className="font-medium rounded-lg">
-                    <label htmlFor="file-upload" className="cursor-pointer">
-                      Selecionar Arquivo
-                    </label>
-                  </Button>
-                </>
+                selectedFiles ? (
+                  <div className="flex items-center justify-center gap-4">
+                    <div className="h-12 w-12 rounded-lg bg-accent/10 flex items-center justify-center">
+                      <Folder className="h-6 w-6 text-accent stroke-[1.5]" />
+                    </div>
+                    <div className="text-left flex-1 min-w-0">
+                      <p className="font-medium text-[15px] text-foreground">
+                        {selectedFiles.length} arquivo(s) selecionado(s)
+                      </p>
+                      <p className="text-[13px] text-muted-foreground font-light mt-0.5">
+                        Pasta: {selectedFiles[0]?.webkitRelativePath?.split('/')[0] || 'Pasta'}
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSelectedFiles(null)}
+                      className="font-medium text-[13px] rounded-lg border-border/60"
+                    >
+                      Alterar
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    <Folder className="h-12 w-12 mx-auto mb-4 text-muted-foreground/40 stroke-[1.5]" />
+                    <p className="text-[15px] font-medium mb-1 text-foreground">
+                      Arraste uma pasta aqui, ou clique para escolher
+                    </p>
+                    <p className="text-[13px] text-muted-foreground font-light mb-6">
+                      Qualquer tipo de arquivo | Tamanho máximo por arquivo: {(MAX_FILE_SIZE / 1024 / 1024).toFixed(2)}MB
+                    </p>
+                    <Input
+                      type="file"
+                      webkitdirectory=""
+                      directory=""
+                      multiple
+                      onChange={(e) => {
+                        if (e.target.files) handleFolderSelect(e.target.files);
+                      }}
+                      className="hidden"
+                      id="folder-upload"
+                    />
+                    <Button type="button" variant="outline" asChild className="font-medium rounded-lg">
+                      <label htmlFor="folder-upload" className="cursor-pointer">
+                        Selecionar Pasta
+                      </label>
+                    </Button>
+                  </>
+                )
               )}
             </div>
 
             {/* Form Fields */}
-            <FormField
-              control={form.control}
-              name="title"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-[13px] font-medium">Title</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="Document title"
-                      className="h-11 text-[15px] font-normal border-border/60 rounded-lg focus-visible:ring-accent/20 focus-visible:border-accent"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {uploadType === "file" && (
+              <FormField
+                control={form.control}
+                name="title"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-[13px] font-medium">Title</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Document title"
+                        className="h-11 text-[15px] font-normal border-border/60 rounded-lg focus-visible:ring-accent/20 focus-visible:border-accent"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
 
             <FormField
               control={form.control}
@@ -386,7 +594,7 @@ export function DocumentUploadDialog({ onSuccess }: DocumentUploadDialogProps) {
               </Button>
               <Button
                 type="submit"
-                disabled={uploading || !selectedFile}
+                disabled={uploading || (uploadType === "file" ? !selectedFile : !selectedFiles)}
                 className="bg-gradient-brand hover:opacity-90 text-navy font-semibold text-[14px] rounded-lg shadow-cyan transition-all duration-200"
               >
                 {uploading && <Loader2 className="mr-2 h-4 w-4 animate-spin stroke-[2]" />}

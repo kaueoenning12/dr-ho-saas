@@ -4,11 +4,13 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { MobileSidebar } from "@/components/layout/MobileSidebar";
 import { DocumentCard } from "@/components/DocumentCard";
+import { FolderNavigator } from "@/components/FolderNavigator";
 import { UserProfileMenu } from "@/components/layout/UserProfileMenu";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { categories } from "@/lib/mockData";
 import { useDocuments } from "@/hooks/useDocumentsQuery";
+import { useRootContents } from "@/hooks/useFoldersQuery";
 import { useScrollReveal } from "@/hooks/useScrollReveal";
 import type { Database } from "@/integrations/supabase/types";
 import { useNavigate } from "react-router-dom";
@@ -38,9 +40,15 @@ export default function Documents() {
     category: selectedCategory,
     searchTerm: searchTerm,
     showOnlyNew: showOnlyNew,
+    // Don't filter by parentFolderId if columns don't exist yet
+    // parentFolderId: null, // Only show root level documents when not in folder view
   });
 
+  const { data: rootContents, isLoading: isLoadingRootContents } = useRootContents();
   const { data: unreadCount = 0, isLoading: isLoadingUnreadCount } = useUnreadCount();
+  
+  // Check if we should show folder navigator (if there are folders at root level)
+  const hasFolders = rootContents && rootContents.folders.length > 0;
 
   const titleReveal = useScrollReveal<HTMLDivElement>({ threshold: 0.3 });
 
@@ -196,42 +204,49 @@ export default function Documents() {
               </div>
             ) : (
               <>
-                {/* Grid 1 coluna mobile, 2 tablet, 3 desktop */}
-                <div className="grid gap-3 sm:gap-4 md:gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-                  {documents.map((document, index) => (
-                <div
-                  key={document.id}
-                  className="animate-fade-in"
-                  style={{
-                    animationDelay: `${Math.min(index * 0.05, 0.3)}s`,
-                    opacity: 0,
-                  }}
-                >
-                    <DocumentCard document={{
-                      id: document.id,
-                      title: document.title,
-                      description: document.description,
-                      category: document.category,
-                      keywords: document.keywords || [],
-                      pdfUrl: document.pdf_url,
-                      publishedAt: document.published_at,
-                      views: 0,
-                      likes: 0,
-                      comments: 0,
-                    }} onOpen={() => handleOpenDocument(document)} />
-                  </div>
-                ))}
-              </div>
+                {/* Show Folder Navigator if there are folders, otherwise show grid */}
+                {hasFolders ? (
+                  <FolderNavigator onDocumentOpen={handleOpenDocument} />
+                ) : (
+                  <>
+                    {/* Grid 1 coluna mobile, 2 tablet, 3 desktop */}
+                    <div className="grid gap-3 sm:gap-4 md:gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+                      {documents.map((document, index) => (
+                        <div
+                          key={document.id}
+                          className="animate-fade-in"
+                          style={{
+                            animationDelay: `${Math.min(index * 0.05, 0.3)}s`,
+                            opacity: 0,
+                          }}
+                        >
+                          <DocumentCard document={{
+                            id: document.id,
+                            title: document.title,
+                            description: document.description,
+                            category: document.category,
+                            keywords: document.keywords || [],
+                            pdfUrl: document.pdf_url,
+                            publishedAt: document.published_at,
+                            views: 0,
+                            likes: 0,
+                            comments: 0,
+                          }} onOpen={() => handleOpenDocument(document)} />
+                        </div>
+                      ))}
+                    </div>
 
-              {documents.length === 0 && (
-                <div className="text-center py-20">
-                  <p className="text-muted-foreground text-[15px] font-light">Nenhum documento encontrado</p>
-                  <p className="text-muted-foreground/60 text-[13px] font-light mt-2">
-                    Tente ajustar seus filtros ou termos de busca
-                  </p>
-                </div>
-              )}
-            </>
+                    {documents.length === 0 && (
+                      <div className="text-center py-20">
+                        <p className="text-muted-foreground text-[15px] font-light">Nenhum documento encontrado</p>
+                        <p className="text-muted-foreground/60 text-[13px] font-light mt-2">
+                          Tente ajustar seus filtros ou termos de busca
+                        </p>
+                      </div>
+                    )}
+                  </>
+                )}
+              </>
             )}
           </div>
         </main>

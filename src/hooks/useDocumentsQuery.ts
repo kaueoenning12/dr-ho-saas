@@ -6,6 +6,8 @@ export interface DocumentFilters {
   category?: string;
   searchTerm?: string;
   showOnlyNew?: boolean;
+  folderId?: string | null;
+  parentFolderId?: string | null;
 }
 
 // Fetch all published documents
@@ -33,8 +35,34 @@ export function useDocuments(filters?: DocumentFilters) {
         query = query.gte("published_at", thirtyDaysAgo.toISOString());
       }
 
+      // Only apply folder filters if the columns exist (to avoid errors before migration)
+      // Skip folder filters if not provided to avoid errors
+      if (filters?.folderId !== undefined && filters.folderId !== null) {
+        query = query.eq("parent_folder_id", filters.folderId);
+      } else if (filters?.parentFolderId !== undefined && filters.parentFolderId !== null) {
+        query = query.eq("parent_folder_id", filters.parentFolderId);
+      }
+      // Note: We don't filter by null parent_folder_id to avoid errors if column doesn't exist
+      // This means all documents will be shown until migration is run
+
       const { data, error } = await query;
-      if (error) throw error;
+      
+      // If error is about missing column, return all documents (backward compatibility)
+      if (error) {
+        if (error.code === '42703' || error.message?.includes('parent_folder_id') || error.message?.includes('folder_path')) {
+          // Column doesn't exist yet - return all documents
+          const { data: allData, error: allError } = await supabase
+            .from("documents")
+            .select("*")
+            .eq("is_published", true)
+            .order("published_at", { ascending: false });
+          
+          if (allError) throw allError;
+          return allData || [];
+        }
+        throw error;
+      }
+      
       return data || [];
     },
   });

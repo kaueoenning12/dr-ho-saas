@@ -49,6 +49,8 @@ const formSchema = z.object({
   category: z.string().min(1, "Please select a category"),
   keywords: z.string().min(1, "Add at least one keyword"),
   isPublished: z.boolean().default(true),
+  isPremium: z.boolean().default(false),
+  previewImageUrl: z.string().url("Must be a valid URL").optional().or(z.literal("")),
 }).refine((data) => {
   // Title is required only for single file upload
   return true; // We'll handle validation in the component
@@ -89,6 +91,8 @@ export function DocumentUploadDialog({ onSuccess }: DocumentUploadDialogProps) {
       category: "",
       keywords: "",
       isPublished: true,
+      isPremium: false,
+      previewImageUrl: "",
     },
   });
   
@@ -280,6 +284,8 @@ export function DocumentUploadDialog({ onSuccess }: DocumentUploadDialogProps) {
           pdf_url: publicUrl,
           author_id: user.id,
           is_published: data.isPublished,
+          is_premium: data.isPremium,
+          preview_image_url: data.previewImageUrl || null,
           file_size: selectedFile.size,
         });
 
@@ -581,6 +587,49 @@ export function DocumentUploadDialog({ onSuccess }: DocumentUploadDialogProps) {
                 </FormItem>
               )}
             />
+
+            <FormField
+              control={form.control}
+              name="isPremium"
+              render={({ field }) => (
+                <FormItem className="flex items-center justify-between rounded-lg border p-4 bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-yellow-950/20 dark:to-orange-950/20">
+                  <div className="space-y-0.5">
+                    <FormLabel className="text-base">Premium Content</FormLabel>
+                    <FormDescription>
+                      Require user rating to unlock this content (Premium/Advanced plans only)
+                    </FormDescription>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+
+            {form.watch("isPremium") && (
+              <FormField
+                control={form.control}
+                name="previewImageUrl"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Preview Image URL (Optional)</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="https://example.com/preview.jpg"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormDescription>
+                      Image to show as blurred preview when document is locked
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
 
             <div className="flex justify-end gap-3 pt-2">
               <Button

@@ -1,12 +1,15 @@
 import { useState } from "react";
-import { Heart, MessageCircle, Eye, Sparkles } from "lucide-react";
+import { Heart, MessageCircle, Eye, Sparkles, Lock } from "lucide-react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Document } from "@/lib/mockData";
 import { isDocumentNew } from "@/lib/utils";
 
 interface DocumentCardProps {
-  document: Document;
+  document: Document & {
+    is_premium?: boolean;
+    is_unlocked?: boolean;
+  };
   onOpen: (document: Document) => void;
 }
 
@@ -14,6 +17,8 @@ export function DocumentCard({ document, onOpen }: DocumentCardProps) {
   const [liked, setLiked] = useState(false);
   const [likes, setLikes] = useState(document.likes);
   const isNew = isDocumentNew(document.publishedAt);
+  const isPremium = document.is_premium || false;
+  const isLocked = isPremium && !document.is_unlocked;
 
   const handleLike = () => {
     setLiked(!liked);
@@ -23,8 +28,8 @@ export function DocumentCard({ document, onOpen }: DocumentCardProps) {
   return (
     <Card
       className={`group cursor-pointer border shadow-elegant hover:shadow-cyan hover:border-cyan/30 transition-all duration-300 hover:-translate-y-1 hover:scale-[1.02] active:scale-[0.98] bg-card relative select-none shimmer-effect ${
-        isNew ? "border-cyan/30 ring-1 ring-cyan/20" : "border-navy/8"
-      }`}
+        isNew ? "border-cyan/30 ring-1 ring-cyan/20" : isPremium ? "border-yellow-500/30 ring-1 ring-yellow-500/20" : "border-navy/8"
+      } ${isLocked ? "opacity-75" : ""}`}
       style={{
         userSelect: 'none',
         WebkitUserSelect: 'none',
@@ -37,12 +42,25 @@ export function DocumentCard({ document, onOpen }: DocumentCardProps) {
       onDragStart={(e) => e.preventDefault()}
       onContextMenu={(e) => e.preventDefault()}
     >
-      {isNew && (
-        <div className="absolute top-3 right-3 z-10">
+      <div className="absolute top-3 right-3 z-10 flex gap-2">
+        {isNew && (
           <Badge className="bg-accent text-accent-foreground border-0 shadow-md shadow-cyan/30 text-[9px] sm:text-[11px] px-1.5 sm:px-2 py-0.5">
             <Sparkles className="h-2.5 sm:h-3 w-2.5 sm:w-3 mr-0.5 sm:mr-1" />
             NOVO
           </Badge>
+        )}
+        {isPremium && (
+          <Badge className="bg-gradient-to-r from-yellow-500 to-orange-500 text-white border-0 shadow-md text-[9px] sm:text-[11px] px-1.5 sm:px-2 py-0.5">
+            <Sparkles className="h-2.5 sm:h-3 w-2.5 sm:w-3 mr-0.5 sm:mr-1" />
+            PREMIUM
+          </Badge>
+        )}
+      </div>
+      {isLocked && (
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10">
+          <div className="bg-black/60 backdrop-blur-sm rounded-full p-3">
+            <Lock className="h-6 w-6 text-white" />
+          </div>
         </div>
       )}
       <CardHeader className={`pb-2 sm:pb-3 px-4 sm:px-6 select-none pointer-events-none ${isNew ? 'pt-12 sm:pt-12' : 'pt-4 sm:pt-6'}`}>

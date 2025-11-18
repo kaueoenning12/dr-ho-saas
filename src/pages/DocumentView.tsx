@@ -12,10 +12,15 @@ import { toast } from "sonner";
 import { mockDocumentContents } from "@/lib/mockData";
 import { useDocumentById, useDocuments } from "@/hooks/useDocumentsQuery";
 import { CardNavigation } from "@/components/CardNavigation";
+import { DocumentPremiumPreview } from "@/components/DocumentPremiumPreview";
+import { DocumentUnlockModal } from "@/components/DocumentUnlockModal";
+import { useIsDocumentUnlocked } from "@/hooks/useDocumentUnlocks";
+import { useEligibleForPremium } from "@/hooks/useEligibleForPremium";
 
 export default function DocumentView() {
   const [showProtectionWarning, setShowProtectionWarning] = useState(false);
   const [isPdfLoading, setIsPdfLoading] = useState(true);
+  const [showUnlockModal, setShowUnlockModal] = useState(false);
   const { user } = useAuth();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -24,6 +29,15 @@ export default function DocumentView() {
     data: document,
     isLoading: isDocumentLoading,
   } = useDocumentById(id ?? null);
+
+  // Premium document checks
+  const { data: unlockStatus } = useIsDocumentUnlocked(id);
+  const { data: eligibilityStatus } = useEligibleForPremium();
+  
+  const isPremium = document?.is_premium || false;
+  const isUnlocked = unlockStatus?.isUnlocked || false;
+  const isEligible = eligibilityStatus?.isEligible || false;
+  const shouldShowPreview = isPremium && !isUnlocked;
 
   // Get related documents in the same category
   const { data: relatedDocuments = [] } = useDocuments({
@@ -34,6 +48,11 @@ export default function DocumentView() {
   const relatedDocs = relatedDocuments
     .filter((doc) => doc.id !== document?.id)
     .slice(0, 5);
+  
+  const handleUnlockSuccess = () => {
+    toast.success("Documento desbloqueado com sucesso!");
+    // The query will automatically refetch
+  };
 
   useEffect(() => {
     if (!document) return;
@@ -269,6 +288,16 @@ export default function DocumentView() {
                   </p>
                 </div>
               </div>
+            ) : shouldShowPreview ? (
+              <div className="absolute inset-0 flex items-center justify-center p-4">
+                <DocumentPremiumPreview
+                  title={document.title}
+                  previewImageUrl={document.preview_image_url}
+                  isEligible={isEligible}
+                  onUnlockClick={() => setShowUnlockModal(true)}
+                  className="max-w-2xl w-full"
+                />
+              </div>
             ) : hasSimulatedContent ? (
               <div
                 className="w-full h-full overflow-auto p-3 sm:p-8 bg-card select-none relative"
@@ -385,6 +414,17 @@ export default function DocumentView() {
           </div>
         </main>
       </div>
+      
+      {/* Unlock Modal */}
+      {document && (
+        <DocumentUnlockModal
+          open={showUnlockModal}
+          onOpenChange={setShowUnlockModal}
+          documentId={document.id}
+          documentTitle={document.title}
+          onUnlockSuccess={handleUnlockSuccess}
+        />
+      )}
     </SidebarProvider>
   );
 }

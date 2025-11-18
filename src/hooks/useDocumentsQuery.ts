@@ -7,6 +7,11 @@ import { toast } from "sonner";
  */
 async function getSignedUrl(filePath: string, expiresIn: number = 3600): Promise<string> {
   try {
+    // Se já é uma URL completa, não precisa gerar signed URL
+    if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
+      return filePath;
+    }
+    
     const { data, error } = await supabase.storage
       .from('documents')
       .createSignedUrl(filePath, expiresIn);

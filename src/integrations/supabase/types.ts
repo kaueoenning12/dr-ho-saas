@@ -595,6 +595,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      folder_has_children: { Args: { folder_id: string }; Returns: boolean }
       get_document_stats: { Args: never; Returns: Json }
       get_forum_stats: { Args: never; Returns: Json }
       get_platform_stats: { Args: never; Returns: Json }

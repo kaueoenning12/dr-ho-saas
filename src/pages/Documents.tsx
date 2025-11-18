@@ -43,14 +43,13 @@ export default function Documents() {
   // Check if we should show folder navigator (if there are folders at root level)
   const hasFolders = rootContents && rootContents.folders.length > 0;
 
-  // Depois usar hasFolders para filtrar documentos corretamente
+  // Sempre buscar apenas documentos raiz (parent_folder_id IS NULL)
+  // O FolderNavigator gerencia documentos dentro de pastas separadamente
   const { data: documents = [], isLoading } = useDocuments({
     category: selectedCategory,
     searchTerm: searchTerm,
     showOnlyNew: showOnlyNew,
-    // Se há pastas, não buscar documentos aqui (FolderNavigator gerencia)
-    // Se não há pastas, buscar apenas documentos na raiz (parent_folder_id IS NULL)
-    parentFolderId: hasFolders ? undefined : null,
+    parentFolderId: null,  // ✅ Sempre buscar apenas documentos na raiz
   });
 
   const titleReveal = useScrollReveal<HTMLDivElement>({ threshold: 0.3 });

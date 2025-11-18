@@ -65,10 +65,21 @@ export function UserActionsDropdown({
   const handleDelete = async () => {
     setLoading(true);
     try {
-      // Deletar user via RPC function
-      const { error } = await supabase.rpc('delete_user', { user_id: userId });
+      // Delete user roles first
+      const { error: rolesError } = await supabase
+        .from('user_roles')
+        .delete()
+        .eq('user_id', userId);
 
-      if (error) throw error;
+      if (rolesError) throw rolesError;
+
+      // Delete profile (cascades to subscriptions)
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .delete()
+        .eq('user_id', userId);
+
+      if (profileError) throw profileError;
 
       toast.success(`Usuário ${userName} deletado com sucesso`);
       setShowDeleteDialog(false);

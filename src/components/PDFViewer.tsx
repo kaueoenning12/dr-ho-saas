@@ -17,7 +17,6 @@ import {
   Document as PDFDocument,
   Page,
   pdfjs,
-  type PDFDocumentProxy,
 } from "react-pdf";
 
 pdfjs.GlobalWorkerOptions.workerSrc = new URL(
@@ -159,7 +158,7 @@ export function PDFViewer({ document, open, onClose }: PDFViewerProps) {
     setScale(1);
   };
 
-  const handlePdfLoadSuccess = (pdf: PDFDocumentProxy) => {
+  const handlePdfLoadSuccess = (pdf: any) => {
     setNumPages(pdf.numPages);
     setIsLoading(false);
   };

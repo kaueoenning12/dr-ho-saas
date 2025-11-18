@@ -18,8 +18,8 @@ export default function Settings() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("account");
   
-  const currentPlan = user?.subscription?.planId === doutorHOPlan.id ? doutorHOPlan : null;
-  const daysRemaining = user?.subscription?.expiryDate ? daysUntil(user.subscription.expiryDate) : 0;
+  const currentPlan = user?.subscription?.plan_id === doutorHOPlan.id ? doutorHOPlan : null;
+  const daysRemaining = user?.subscription?.expires_at ? daysUntil(user.subscription.expires_at) : 0;
 
   return (
     <SidebarProvider>
@@ -122,21 +122,15 @@ export default function Settings() {
                           <div className="space-y-2 text-sm">
                             <div className="flex justify-between">
                               <span className="text-navy/70">Início da assinatura:</span>
-                              <span className="font-medium text-navy">{formatDateBR(user.subscription.startDate)}</span>
+                              <span className="font-medium text-navy">{formatDateBR(user.subscription.started_at)}</span>
                             </div>
                             <div className="flex justify-between">
                               <span className="text-navy/70">Próxima renovação:</span>
-                              <span className="font-medium text-navy">{formatDateBR(user.subscription.expiryDate)}</span>
+                              <span className="font-medium text-navy">{formatDateBR(user.subscription.expires_at)}</span>
                             </div>
                             <div className="flex justify-between">
                               <span className="text-navy/70">Dias restantes:</span>
                               <span className="font-medium text-cyan">{daysRemaining > 0 ? daysRemaining : 0} dias</span>
-                            </div>
-                            <div className="flex justify-between">
-                              <span className="text-navy/70">Renovação automática:</span>
-                              <span className="font-medium text-navy">
-                                {user.subscription.autoRenew ? "Ativa" : "Desativada"}
-                              </span>
                             </div>
                           </div>
                         </div>

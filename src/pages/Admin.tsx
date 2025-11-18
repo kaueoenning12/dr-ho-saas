@@ -9,7 +9,6 @@ import { UserProfileMenu } from "@/components/layout/UserProfileMenu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { DocumentActions } from "@/components/admin/DocumentActions";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatTimeAgo } from "@/lib/utils";
 import { NotificationManagement } from "@/components/admin/NotificationManagement";
@@ -166,10 +165,9 @@ export default function Admin() {
                               <p className="text-[12px] sm:text-[13px] text-muted-foreground font-light mt-0.5">{doc.category}</p>
                             </div>
                             <div className="flex items-center gap-3 sm:gap-4 shrink-0">
-                              <Badge variant="outline" className="bg-cyan/10 text-cyan border-cyan/30 text-[12px]">
+                            <Badge variant="outline" className="bg-cyan/10 text-cyan border-cyan/30 text-[12px]">
                                 {doc.is_published ? "Publicado" : "Rascunho"}
                               </Badge>
-                              <DocumentActions doc={doc as any} onChanged={refetchDocuments} />
                             </div>
                           </div>
                         ))}

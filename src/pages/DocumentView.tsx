@@ -12,6 +12,8 @@ import { toast } from "sonner";
 import { mockDocumentContents } from "@/lib/mockData";
 import { useDocumentById, useDocuments } from "@/hooks/useDocumentsQuery";
 import { CardNavigation } from "@/components/CardNavigation";
+import { useDocumentUnlock } from "@/hooks/usePremiumDocuments";
+import { PremiumDocumentUnlock } from "@/components/PremiumDocumentUnlock";
 
 export default function DocumentView() {
   const [showProtectionWarning, setShowProtectionWarning] = useState(false);
@@ -25,6 +27,9 @@ export default function DocumentView() {
     isLoading: isDocumentLoading,
   } = useDocumentById(id ?? null);
 
+  // Check if document is unlocked (for premium documents)
+  const { data: unlockData, isLoading: isUnlockLoading } = useDocumentUnlock(id ?? null);
+  
   // Get related documents in the same category
   const { data: relatedDocuments = [] } = useDocuments({
     category: document?.category || "Todas",
@@ -34,6 +39,11 @@ export default function DocumentView() {
   const relatedDocs = relatedDocuments
     .filter((doc) => doc.id !== document?.id)
     .slice(0, 5);
+
+  // Check if document is premium and not unlocked
+  const isPremium = document?.is_premium || false;
+  const isUnlocked = !!unlockData || !isPremium;
+  const shouldShowUnlockScreen = isPremium && !isUnlocked && !isUnlockLoading;
 
   useEffect(() => {
     if (!document) return;
@@ -220,12 +230,12 @@ export default function DocumentView() {
                       Categoria: {document.category}
                     </p>
                   </div>
-                  <Badge
+                   <Badge
                     variant="outline"
                     className="w-fit items-center gap-1.5 px-2.5 py-1 bg-cyan/10 border-cyan/20 text-cyan"
                   >
                     <Shield className="h-3.5 w-3.5" />
-                    Conteúdo Protegido
+                    {isPremium ? "Conteúdo Premium" : "Conteúdo Protegido"}
                   </Badge>
                 </div>
               ) : (
@@ -254,7 +264,7 @@ export default function DocumentView() {
               </div>
             )}
 
-            {isDocumentLoading ? (
+            {isDocumentLoading || isUnlockLoading ? (
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="text-center space-y-3">
                   <Loader2 className="h-10 w-10 animate-spin text-cyan mx-auto" />
@@ -268,6 +278,14 @@ export default function DocumentView() {
                     O documento solicitado não foi encontrado ou não está disponível.
                   </p>
                 </div>
+              </div>
+            ) : shouldShowUnlockScreen ? (
+              <div className="w-full h-full overflow-auto p-3 sm:p-8">
+                <PremiumDocumentUnlock
+                  documentId={document.id}
+                  documentTitle={document.title}
+                  previewImageUrl={document.preview_image_url}
+                />
               </div>
             ) : hasSimulatedContent ? (
               <div

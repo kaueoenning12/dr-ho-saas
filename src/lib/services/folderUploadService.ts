@@ -22,6 +22,43 @@ export interface UploadResult {
 }
 
 /**
+ * Sanitize a filename by removing accents, special characters, and spaces
+ */
+export function sanitizeFileName(fileName: string): string {
+  // Remove accents
+  const withoutAccents = fileName
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+  
+  // Get extension
+  const lastDot = withoutAccents.lastIndexOf('.');
+  const name = lastDot > 0 ? withoutAccents.substring(0, lastDot) : withoutAccents;
+  const ext = lastDot > 0 ? withoutAccents.substring(lastDot) : '';
+  
+  // Sanitize name part
+  const sanitized = name
+    .toLowerCase()
+    .replace(/\s+/g, '_') // Replace spaces with underscores
+    .replace(/[^a-z0-9_-]/g, '') // Remove special characters except - and _
+    .substring(0, 100); // Limit length
+  
+  return sanitized + ext.toLowerCase();
+}
+
+/**
+ * Sanitize a path segment
+ */
+export function sanitizePathSegment(segment: string): string {
+  return segment
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, '_')
+    .replace(/[^a-z0-9_-]/g, '')
+    .substring(0, 100);
+}
+
+/**
  * Normalize folder path (remove leading/trailing slashes, normalize separators)
  */
 export function normalizeFolderPath(path: string): string {
@@ -48,6 +85,97 @@ export function getFileNameFromPath(filePath: string): string {
   const normalized = normalizeFolderPath(filePath);
   const lastSlash = normalized.lastIndexOf('/');
   return lastSlash === -1 ? normalized : normalized.substring(lastSlash + 1);
+}
+
+/**
+ * Get folder name from path (last segment)
+ */
+export function getFolderNameFromPath(path: string): string {
+  const normalized = normalizeFolderPath(path);
+  const lastSlash = normalized.lastIndexOf('/');
+  return lastSlash === -1 ? normalized : normalized.substring(lastSlash + 1);
+}
+
+/**
+ * Create a folder in the database
+ */
+export async function createFolderInDatabase(
+  folderPath: string,
+  parentFolderId: string | null,
+  authorId: string
+): Promise<string> {
+  // Check if folder already exists
+  const { data: existing, error: existingError } = await supabase
+    .from('document_folders')
+    .select('id')
+    .eq('path', folderPath)
+    .maybeSingle();
+  
+  if (existingError) {
+    console.error('[Folder Creation] Error checking existing folder:', existingError);
+    throw existingError;
+  }
+  
+  if (existing) {
+    console.log('[Folder Creation] Folder already exists:', folderPath);
+    return existing.id;
+  }
+  
+  // Create new folder
+  const folderName = getFolderNameFromPath(folderPath);
+  const { data, error } = await supabase
+    .from('document_folders')
+    .insert({
+      name: folderName,
+      path: folderPath,
+      parent_folder_id: parentFolderId,
+      author_id: authorId
+    })
+    .select('id')
+    .single();
+  
+  if (error) {
+    console.error('[Folder Creation] Error creating folder:', error);
+    throw error;
+  }
+  
+  console.log('[Folder Creation] ✅ Created folder:', { folderPath, id: data.id });
+  return data.id;
+}
+
+/**
+ * Process and create folder hierarchy recursively
+ */
+export async function processAndCreateFolderHierarchy(
+  fullPath: string,
+  authorId: string
+): Promise<string | null> {
+  if (!fullPath) return null;
+  
+  const normalized = normalizeFolderPath(fullPath);
+  const segments = normalized.split('/').filter(s => s.length > 0);
+  
+  if (segments.length === 0) return null;
+  
+  let currentPath = '';
+  let parentId: string | null = null;
+  
+  // Create each level sequentially
+  for (const segment of segments) {
+    currentPath = currentPath ? `${currentPath}/${segment}` : segment;
+    parentId = await createFolderInDatabase(currentPath, parentId, authorId);
+  }
+  
+  return parentId; // Return ID of deepest folder
+}
+
+/**
+ * Generate simplified storage path
+ */
+export function generateStoragePath(userId: string, fileName: string): string {
+  const timestamp = Date.now();
+  const sanitized = sanitizeFileName(fileName);
+  return `${userId}/${timestamp}/${sanitized}`;
 }
 
 /**
@@ -170,89 +298,9 @@ export function processFolderFiles(files: FileList): {
   return { folders, filesToUpload, errors };
 }
 
-/**
- * Create folder in database
- */
-export async function createFolderInDatabase(
-  folder: FolderStructure,
-  userId: string
-): Promise<string | null> {
-  try {
-    // Check if folder already exists
-    const { data: existing } = await supabase
-      .from('document_folders')
-      .select('id')
-      .eq('path', folder.path)
-      .maybeSingle();
+// Old createFolderInDatabase removed - using new implementation above
 
-    if (existing) {
-      return existing.id;
-    }
-
-    // Get parent folder ID if exists
-    let parentFolderId: string | null = null;
-    if (folder.parentPath) {
-      const { data: parent } = await supabase
-        .from('document_folders')
-        .select('id')
-        .eq('path', folder.parentPath)
-        .maybeSingle();
-      
-      if (parent) {
-        parentFolderId = parent.id;
-      }
-    }
-
-    // Create folder
-    const { data, error } = await supabase
-      .from('document_folders')
-      .insert({
-        name: folder.name,
-        path: folder.path,
-        parent_folder_id: parentFolderId,
-        author_id: userId,
-      })
-      .select('id')
-      .single();
-
-    if (error) {
-      console.error('Error creating folder:', error);
-      return null;
-    }
-
-    return data.id;
-  } catch (error) {
-    console.error('Error creating folder in database:', error);
-    return null;
-  }
-}
-
-/**
- * Create all folders in correct order (parents first)
- */
-export async function createFoldersInDatabase(
-  folders: Map<string, FolderStructure>,
-  userId: string
-): Promise<Map<string, string>> {
-  const folderIdMap = new Map<string, string>();
-  
-  // Sort folders by depth (shallowest first)
-  const sortedFolders = Array.from(folders.values()).sort((a, b) => {
-    const depthA = a.path.split('/').length;
-    const depthB = b.path.split('/').length;
-    return depthA - depthB;
-  });
-
-  // Create folders in order
-  for (const folder of sortedFolders) {
-    const folderId = await createFolderInDatabase(folder, userId);
-    if (folderId) {
-      folderIdMap.set(folder.path, folderId);
-    }
-  }
-
-  return folderIdMap;
-}
+// Old createFoldersInDatabase removed - using processAndCreateFolderHierarchy instead
 
 /**
  * Upload file to storage with folder structure
@@ -419,8 +467,21 @@ export async function uploadFolderStructure(
     console.log(`[Folder Upload] ${filesToUpload.length} arquivo(s) válido(s) para upload`);
 
     // Create folders in database
-    const folderIdMap = await createFoldersInDatabase(folders, userId);
-    result.foldersCreated = Array.from(folderIdMap.keys());
+    console.log('[Folder Upload] Criando estrutura de pastas no banco...');
+    const folderIdMap = new Map<string, string>(); // path -> folderId
+    
+    for (const [path, folder] of folders) {
+      try {
+        const folderId = await processAndCreateFolderHierarchy(path, userId);
+        if (folderId) {
+          folderIdMap.set(path, folderId);
+          result.foldersCreated.push(path);
+        }
+      } catch (error) {
+        console.error('[Folder Upload] Erro ao criar pasta:', path, error);
+        result.errors.push(`Erro ao criar pasta ${path}: ${error instanceof Error ? error.message : 'Erro desconhecido'}`);
+      }
+    }
 
     // Upload files and create document records
     for (const fileInfo of filesToUpload) {
@@ -430,14 +491,11 @@ export async function uploadFolderStructure(
           ? folderIdMap.get(fileInfo.folderPath) || null
           : null;
 
-        // Upload file to storage
-        const { publicUrl, filePath } = await uploadFileToStorage(
-          fileInfo.file,
-          fileInfo.folderPath,
-          userId
-        );
+        // Upload file to storage with simplified path
+        const simplifiedPath = generateStoragePath(userId, fileInfo.file.name);
+        const { publicUrl, filePath } = await uploadWithFetchDirect(fileInfo.file, simplifiedPath, 'documents');
 
-        // Create document record
+        // Create document record with folder association
         const { error: docError } = await supabase
           .from('documents')
           .insert({
@@ -445,7 +503,7 @@ export async function uploadFolderStructure(
             description: metadata.description || `Arquivo: ${fileInfo.fileName}`,
             category: metadata.category,
             keywords: metadata.keywords,
-            pdf_url: publicUrl,
+            pdf_url: filePath, // Store storage path, not public URL
             author_id: userId,
             is_published: metadata.isPublished,
             file_size: fileInfo.file.size,

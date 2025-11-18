@@ -45,17 +45,17 @@ import { useEffect } from "react";
 
 const formSchema = z.object({
   title: z.string().optional(),
-  description: z.string().min(10, "Description must be at least 10 characters"),
-  category: z.string().min(1, "Please select a category"),
-  keywords: z.string().min(1, "Add at least one keyword"),
+  description: z.string().min(10, "A descrição deve ter pelo menos 10 caracteres"),
+  category: z.string().min(1, "Por favor selecione uma categoria"),
+  keywords: z.string().min(1, "Adicione pelo menos uma palavra-chave"),
   isPublished: z.boolean().default(true),
   isPremium: z.boolean().default(false),
-  previewImageUrl: z.string().url("Must be a valid URL").optional().or(z.literal("")),
+  previewImageUrl: z.string().url("Deve ser uma URL válida").optional().or(z.literal("")),
 }).refine((data) => {
   // Title is required only for single file upload
   return true; // We'll handle validation in the component
 }, {
-  message: "Title is required for single file upload",
+  message: "Título é obrigatório para upload de arquivo único",
   path: ["title"],
 });
 
@@ -341,12 +341,12 @@ export function DocumentUploadDialog({ onSuccess }: DocumentUploadDialogProps) {
       <DialogTrigger asChild>
         <Button className="gap-2 bg-gradient-brand hover:opacity-90 text-navy font-semibold text-[14px] rounded-lg shadow-cyan transition-all duration-200 h-10">
           <Upload className="h-4 w-4 stroke-[2]" />
-          Upload Document
+          Enviar Documento
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto border-0 shadow-elegant-lg">
         <DialogHeader className="pb-4">
-          <DialogTitle className="text-[20px] font-semibold tracking-tight text-navy">Upload New Document</DialogTitle>
+          <DialogTitle className="text-[20px] font-semibold tracking-tight text-navy">Enviar Novo Documento</DialogTitle>
           <DialogDescription className="text-[14px] font-light mt-1 text-navy/60">
             {uploadType === "file" 
               ? "Adicione um novo documento de segurança do trabalho à biblioteca. Qualquer tipo de arquivo é permitido."
@@ -572,9 +572,9 @@ export function DocumentUploadDialog({ onSuccess }: DocumentUploadDialogProps) {
               render={({ field }) => (
                 <FormItem className="flex items-center justify-between rounded-lg border p-4">
                   <div className="space-y-0.5">
-                    <FormLabel className="text-base">Publish immediately</FormLabel>
+                    <FormLabel className="text-base">Publicar imediatamente</FormLabel>
                     <FormDescription>
-                      Make this document visible to all users
+                      Tornar este documento visível para todos os usuários
                     </FormDescription>
                   </div>
                   <FormControl>
@@ -593,9 +593,9 @@ export function DocumentUploadDialog({ onSuccess }: DocumentUploadDialogProps) {
               render={({ field }) => (
                 <FormItem className="flex items-center justify-between rounded-lg border p-4 bg-gradient-to-r from-yellow-50 to-orange-50 dark:from-yellow-950/20 dark:to-orange-950/20">
                   <div className="space-y-0.5">
-                    <FormLabel className="text-base">Premium Content</FormLabel>
+                    <FormLabel className="text-base">Conteúdo Premium</FormLabel>
                     <FormDescription>
-                      Require user rating to unlock this content (Premium/Advanced plans only)
+                      Requer avaliação do usuário para desbloquear (apenas planos Premium/Avançado)
                     </FormDescription>
                   </div>
                   <FormControl>
@@ -614,15 +614,15 @@ export function DocumentUploadDialog({ onSuccess }: DocumentUploadDialogProps) {
                 name="previewImageUrl"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Preview Image URL (Optional)</FormLabel>
+                    <FormLabel>URL da Imagem de Prévia (Opcional)</FormLabel>
                     <FormControl>
                       <Input
-                        placeholder="https://example.com/preview.jpg"
+                        placeholder="https://exemplo.com/preview.jpg"
                         {...field}
                       />
                     </FormControl>
                     <FormDescription>
-                      Image to show as blurred preview when document is locked
+                      Imagem que será exibida borrada quando o documento estiver bloqueado
                     </FormDescription>
                     <FormMessage />
                   </FormItem>

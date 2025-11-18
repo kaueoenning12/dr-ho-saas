@@ -191,6 +191,41 @@ export type Database = {
           },
         ]
       }
+      document_unlocks: {
+        Row: {
+          created_at: string | null
+          document_id: string
+          id: string
+          rating: number
+          unlocked_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          document_id: string
+          id?: string
+          rating: number
+          unlocked_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          document_id?: string
+          id?: string
+          rating?: number
+          unlocked_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_unlocks_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       document_views: {
         Row: {
           document_id: string
@@ -235,10 +270,12 @@ export type Database = {
           file_size: number | null
           folder_path: string | null
           id: string
+          is_premium: boolean | null
           is_published: boolean
           keywords: string[] | null
           parent_folder_id: string | null
           pdf_url: string
+          preview_image_url: string | null
           published_at: string
           search_vector: unknown
           thumbnail_url: string | null
@@ -253,10 +290,12 @@ export type Database = {
           file_size?: number | null
           folder_path?: string | null
           id?: string
+          is_premium?: boolean | null
           is_published?: boolean
           keywords?: string[] | null
           parent_folder_id?: string | null
           pdf_url: string
+          preview_image_url?: string | null
           published_at?: string
           search_vector?: unknown
           thumbnail_url?: string | null
@@ -271,10 +310,12 @@ export type Database = {
           file_size?: number | null
           folder_path?: string | null
           id?: string
+          is_premium?: boolean | null
           is_published?: boolean
           keywords?: string[] | null
           parent_folder_id?: string | null
           pdf_url?: string
+          preview_image_url?: string | null
           published_at?: string
           search_vector?: unknown
           thumbnail_url?: string | null

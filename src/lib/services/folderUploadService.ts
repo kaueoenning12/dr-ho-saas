@@ -102,45 +102,69 @@ export function getFolderNameFromPath(path: string): string {
 export async function createFolderInDatabase(
   folderPath: string,
   parentFolderId: string | null,
-  authorId: string
-): Promise<string> {
-  // Check if folder already exists
-  const { data: existing, error: existingError } = await supabase
-    .from('document_folders')
-    .select('id')
-    .eq('path', folderPath)
-    .maybeSingle();
-  
-  if (existingError) {
-    console.error('[Folder Creation] Error checking existing folder:', existingError);
-    throw existingError;
+  authorId: string,
+  retries: number = 3
+): Promise<string | null> {
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      // Check if folder already exists
+      const { data: existing, error: checkError } = await supabase
+        .from('document_folders')
+        .select('id')
+        .eq('path', folderPath)
+        .maybeSingle();
+
+      if (checkError && checkError.code !== 'PGRST116') {
+        throw checkError;
+      }
+
+      if (existing) {
+        console.log(`[Folder Creation] ✅ Folder already exists: ${folderPath}`);
+        return existing.id;
+      }
+
+      // Create new folder
+      const folderName = getFolderNameFromPath(folderPath);
+      
+      const { data, error } = await supabase
+        .from('document_folders')
+        .insert({
+          name: folderName,
+          path: folderPath,
+          parent_folder_id: parentFolderId,
+          author_id: authorId
+        })
+        .select('id')
+        .single();
+
+      if (error) {
+        // Se erro for de recursão, aguardar e tentar novamente
+        if (error.message?.includes('infinite recursion') && attempt < retries) {
+          console.warn(`[Folder Creation] ⚠️ Recursion detected, retrying (${attempt}/${retries})...`);
+          await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+          continue;
+        }
+        throw error;
+      }
+
+      console.log(`[Folder Creation] ✅ Created folder: ${folderPath} (ID: ${data.id})`);
+      return data.id;
+
+    } catch (error: any) {
+      console.error(`[Folder Creation] ❌ Error creating folder (attempt ${attempt}/${retries}):`, {
+        folderPath,
+        error: error.message
+      });
+      
+      if (attempt === retries) {
+        return null; // Failed after all retries
+      }
+      
+      await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+    }
   }
   
-  if (existing) {
-    console.log('[Folder Creation] Folder already exists:', folderPath);
-    return existing.id;
-  }
-  
-  // Create new folder
-  const folderName = getFolderNameFromPath(folderPath);
-  const { data, error } = await supabase
-    .from('document_folders')
-    .insert({
-      name: folderName,
-      path: folderPath,
-      parent_folder_id: parentFolderId,
-      author_id: authorId
-    })
-    .select('id')
-    .single();
-  
-  if (error) {
-    console.error('[Folder Creation] Error creating folder:', error);
-    throw error;
-  }
-  
-  console.log('[Folder Creation] ✅ Created folder:', { folderPath, id: data.id });
-  return data.id;
+  return null;
 }
 
 /**
@@ -476,6 +500,8 @@ export async function uploadFolderStructure(
         if (folderId) {
           folderIdMap.set(path, folderId);
           result.foldersCreated.push(path);
+        } else {
+          result.errors.push(`Erro ao criar pasta ${path}: falhou após tentativas`);
         }
       } catch (error) {
         console.error('[Folder Upload] Erro ao criar pasta:', path, error);
@@ -486,6 +512,14 @@ export async function uploadFolderStructure(
     // Upload files and create document records
     for (const fileInfo of filesToUpload) {
       try {
+        // Validar tamanho antes de tentar upload
+        if (fileInfo.file.size > MAX_FILE_SIZE) {
+          const fileSizeMB = (fileInfo.file.size / (1024 * 1024)).toFixed(2);
+          console.warn(`[Folder Upload] ⚠️ File too large, skipping: ${fileInfo.fileName} (${fileSizeMB}MB)`);
+          result.errors.push(`Arquivo muito grande: ${fileInfo.fileName} (${fileSizeMB}MB, máximo: 10.00MB)`);
+          continue; // Skip this file
+        }
+
         // Get parent folder ID
         const parentFolderId = fileInfo.folderPath
           ? folderIdMap.get(fileInfo.folderPath) || null
@@ -496,6 +530,7 @@ export async function uploadFolderStructure(
         const { publicUrl, filePath } = await uploadWithFetchDirect(fileInfo.file, simplifiedPath, 'documents');
 
         // Create document record with folder association
+        // IMPORTANTE: Salvar apenas o path relativo (filePath), não a URL pública
         const { error: docError } = await supabase
           .from('documents')
           .insert({
@@ -503,7 +538,7 @@ export async function uploadFolderStructure(
             description: metadata.description || `Arquivo: ${fileInfo.fileName}`,
             category: metadata.category,
             keywords: metadata.keywords,
-            pdf_url: filePath, // Store storage path, not public URL
+            pdf_url: simplifiedPath, // ✅ Store only relative storage path
             author_id: userId,
             is_published: metadata.isPublished,
             file_size: fileInfo.file.size,

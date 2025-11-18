@@ -14,6 +14,7 @@ import { useDocumentById, useDocuments } from "@/hooks/useDocumentsQuery";
 import { CardNavigation } from "@/components/CardNavigation";
 import { useDocumentUnlock } from "@/hooks/usePremiumDocuments";
 import { PremiumDocumentUnlock } from "@/components/PremiumDocumentUnlock";
+import { useSignedPdfUrl } from "@/hooks/useSignedPdfUrl";
 
 export default function DocumentView() {
   const [showProtectionWarning, setShowProtectionWarning] = useState(false);
@@ -44,6 +45,11 @@ export default function DocumentView() {
   const isPremium = document?.is_premium || false;
   const isUnlocked = !!unlockData || !isPremium;
   const shouldShowUnlockScreen = isPremium && !isUnlocked && !isUnlockLoading;
+
+  // Generate signed URL for PDF (only if unlocked)
+  const { signedUrl, isLoading: isLoadingSignedUrl } = useSignedPdfUrl(
+    isUnlocked && document?.pdf_url ? document.pdf_url : null
+  );
 
   useEffect(() => {
     if (!document) return;

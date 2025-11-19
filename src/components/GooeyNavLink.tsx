@@ -182,8 +182,9 @@ export function GooeyNavLink({
   }, [isActive]);
 
   const isDark = resolvedTheme === 'dark';
-  const textColor = isDark ? 'white' : 'black';
-  const bgColor = isDark ? 'black' : 'white';
+  const textColor = isDark ? 'hsl(var(--foreground))' : 'hsl(var(--foreground))';
+  const bgColor = isDark ? 'hsl(var(--background))' : 'hsl(var(--accent))';
+  const shadowColor = isDark ? 'rgba(0, 0, 0, 0.3)' : 'rgba(0, 0, 0, 0.1)';
 
   return (
     <>
@@ -195,10 +196,10 @@ export function GooeyNavLink({
             transition: all 0.3s ease;
             border-radius: 8px;
             color: ${textColor};
-            text-shadow: 0 1px 1px ${isDark ? 'rgba(0, 0, 0, 0.2)' : 'rgba(255, 255, 255, 0.2)'};
+            text-shadow: 0 1px 2px ${shadowColor};
           }
           .gooey-nav-link-${label.replace(/\s+/g, '-').toLowerCase()}.active {
-            color: ${bgColor};
+            color: ${isDark ? 'hsl(var(--background))' : 'hsl(var(--primary-foreground))'};
             text-shadow: none;
           }
           .gooey-nav-link-${label.replace(/\s+/g, '-').toLowerCase()}::after {
@@ -229,7 +230,7 @@ export function GooeyNavLink({
             transition: color 0.3s ease;
           }
           .gooey-effect.text.active {
-            color: ${bgColor};
+            color: ${isDark ? 'hsl(var(--background))' : 'hsl(var(--primary-foreground))'};
           }
           .gooey-effect.filter {
             filter: blur(7px) contrast(100) blur(0);
@@ -240,13 +241,13 @@ export function GooeyNavLink({
             position: absolute;
             inset: -75px;
             z-index: -2;
-            background: ${bgColor};
+            background: ${isDark ? 'hsl(var(--background))' : 'hsl(var(--card))'};
           }
           .gooey-effect.filter::after {
             content: "";
             position: absolute;
             inset: 0;
-            background: ${textColor};
+            background: ${bgColor};
             transform: scale(0);
             opacity: 0;
             z-index: -1;

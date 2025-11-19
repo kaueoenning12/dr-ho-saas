@@ -241,6 +241,21 @@ export function PDFViewer({ document }: PDFViewerProps) {
     setScale(autoScale);
   };
 
+  const getPageWidth = () => {
+    if (!containerRef.current) return undefined;
+    const containerWidth = containerRef.current.clientWidth;
+    const baseWidth = containerWidth - 120; // margens de 60px cada lado
+    
+    // Se scale está no auto (fit-to-page), usar largura base
+    if (Math.abs(scale - autoScale) < 0.01) {
+      return baseWidth;
+    }
+    
+    // Se usuário deu zoom manual, calcular proporcionalmente
+    const zoomFactor = scale / autoScale;
+    return baseWidth * zoomFactor;
+  };
+
   const handlePdfLoadSuccess = ({ numPages }: { numPages: number }) => {
     setNumPages(numPages);
     setIsLoading(false);
@@ -309,7 +324,7 @@ export function PDFViewer({ document }: PDFViewerProps) {
         </span>
       </div>
 
-      <div ref={containerRef} className="flex-1 overflow-auto bg-white dark:bg-gray-50 relative">
+      <div ref={containerRef} className="flex-1 overflow-auto bg-gray-50 relative">
         {showProtectionWarning && (
           <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm pointer-events-none animate-in fade-in duration-200">
             <div className="bg-gradient-to-r from-red-500 to-red-600 text-white px-6 py-3 rounded-xl shadow-lg flex items-center gap-2 animate-pulse">
@@ -387,7 +402,7 @@ export function PDFViewer({ document }: PDFViewerProps) {
 
             {pdfSource && (
               <div 
-                className="flex flex-col items-center py-8 space-y-4 bg-white min-h-full"
+                className="flex flex-col items-center py-8 space-y-4 bg-gray-50 min-h-full"
                 style={{
                   userSelect: 'none',
                   WebkitUserSelect: 'none',
@@ -419,8 +434,7 @@ export function PDFViewer({ document }: PDFViewerProps) {
                     >
                       <Page
                         pageNumber={index + 1}
-                        scale={scale}
-                        width={containerRef.current ? containerRef.current.clientWidth - 120 : undefined}
+                        width={getPageWidth()}
                         renderTextLayer={false}
                         renderAnnotationLayer={false}
                         loading={

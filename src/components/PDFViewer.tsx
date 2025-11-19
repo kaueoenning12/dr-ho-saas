@@ -212,10 +212,10 @@ export function PDFViewer({ document }: PDFViewerProps) {
       if (containerRef.current) {
         const containerWidth = containerRef.current.clientWidth;
         // 595 é a largura padrão de uma página A4 em pontos
-        // Subtraímos 80px (40px de cada lado) para margens
-        const calculatedScale = (containerWidth - 80) / 595;
-        // Limitar entre 0.8 e 2.5 para evitar extremos
-        const boundedScale = Math.max(0.8, Math.min(2.5, calculatedScale));
+        // Subtraímos 120px (60px de cada lado) para margens mais generosas
+        const calculatedScale = (containerWidth - 120) / 595;
+        // Limitar entre 0.8 e 1.6 para evitar que fique muito grande
+        const boundedScale = Math.max(0.8, Math.min(1.6, calculatedScale));
         setAutoScale(boundedScale);
         setScale(boundedScale);
       }
@@ -230,7 +230,7 @@ export function PDFViewer({ document }: PDFViewerProps) {
   }, [pdfSource]);
 
   const handleZoomIn = () => {
-    setScale((prev) => Math.min(prev + 0.2, 2.5));
+    setScale((prev) => Math.min(prev + 0.2, 2));
   };
 
   const handleZoomOut = () => {
@@ -299,7 +299,7 @@ export function PDFViewer({ document }: PDFViewerProps) {
           variant="outline"
           size="sm"
           onClick={handleZoomIn}
-          disabled={scale >= 2.5}
+          disabled={scale >= 2}
           className="h-8 px-2"
         >
           <ZoomIn className="h-4 w-4" />
@@ -387,7 +387,7 @@ export function PDFViewer({ document }: PDFViewerProps) {
 
             {pdfSource && (
               <div 
-                className="flex flex-col items-center py-4 space-y-4 bg-white min-h-full"
+                className="flex flex-col items-center py-8 space-y-4 bg-white min-h-full"
                 style={{
                   userSelect: 'none',
                   WebkitUserSelect: 'none',
@@ -420,7 +420,7 @@ export function PDFViewer({ document }: PDFViewerProps) {
                       <Page
                         pageNumber={index + 1}
                         scale={scale}
-                        width={containerRef.current ? containerRef.current.clientWidth - 80 : undefined}
+                        width={containerRef.current ? containerRef.current.clientWidth - 120 : undefined}
                         renderTextLayer={false}
                         renderAnnotationLayer={false}
                         loading={

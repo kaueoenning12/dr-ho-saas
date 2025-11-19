@@ -182,10 +182,7 @@ export function GooeyNavLink({
   }, [isActive]);
 
   const isDark = resolvedTheme === 'dark';
-  const textColor = isDark ? 'hsl(var(--foreground))' : 'hsl(var(--foreground))';
-  const bgColor = isDark ? 'hsl(var(--background))' : 'hsl(var(--accent))';
-  const shadowColor = isDark ? 'rgba(0, 0, 0, 0.3)' : 'rgba(0, 0, 0, 0.1)';
-
+  
   return (
     <>
       <style>
@@ -195,21 +192,25 @@ export function GooeyNavLink({
             cursor: pointer;
             transition: all 0.3s ease;
             border-radius: 8px;
-            color: ${textColor};
-            text-shadow: 0 1px 2px ${shadowColor};
+            color: hsl(var(--foreground));
+            text-shadow: none;
+            padding: 0.5rem 0.75rem;
+          }
+          .gooey-nav-link-${label.replace(/\s+/g, '-').toLowerCase()}:hover {
+            background: hsl(var(--muted));
           }
           .gooey-nav-link-${label.replace(/\s+/g, '-').toLowerCase()}.active {
-            color: ${isDark ? 'hsl(var(--background))' : 'hsl(var(--primary-foreground))'};
-            text-shadow: none;
+            color: hsl(var(--accent-foreground));
+            background: hsl(var(--accent));
           }
           .gooey-nav-link-${label.replace(/\s+/g, '-').toLowerCase()}::after {
             content: "";
             position: absolute;
             inset: 0;
             border-radius: 8px;
-            background: ${bgColor};
+            background: hsl(var(--accent));
             opacity: 0;
-            transform: scale(0);
+            transform: scale(0.95);
             transition: all 0.3s ease;
             z-index: -1;
           }
@@ -226,28 +227,29 @@ export function GooeyNavLink({
             z-index: 1;
           }
           .gooey-effect.text {
-            color: ${textColor};
+            color: hsl(var(--foreground));
             transition: color 0.3s ease;
           }
           .gooey-effect.text.active {
-            color: ${isDark ? 'hsl(var(--background))' : 'hsl(var(--primary-foreground))'};
+            color: hsl(var(--accent-foreground));
           }
           .gooey-effect.filter {
-            filter: blur(7px) contrast(100) blur(0);
-            mix-blend-mode: ${isDark ? 'lighten' : 'darken'};
+            filter: blur(7px) contrast(100);
+            mix-blend-mode: ${isDark ? 'screen' : 'multiply'};
+            opacity: 0.8;
           }
           .gooey-effect.filter::before {
             content: "";
             position: absolute;
             inset: -75px;
             z-index: -2;
-            background: ${isDark ? 'hsl(var(--background))' : 'hsl(var(--card))'};
+            background: transparent;
           }
           .gooey-effect.filter::after {
             content: "";
             position: absolute;
             inset: 0;
-            background: ${bgColor};
+            background: hsl(var(--accent));
             transform: scale(0);
             opacity: 0;
             z-index: -1;

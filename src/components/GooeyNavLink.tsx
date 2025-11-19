@@ -342,10 +342,10 @@ export function GooeyNavLink({
           href={href}
           onClick={handleClick}
           onKeyDown={handleKeyDown}
-          className="outline-none py-[0.6em] px-[1em] inline-flex items-center gap-1.5 relative z-[3] text-sm sm:text-base"
+          className="outline-none py-[0.6em] px-[1em] inline-flex items-center gap-1.5 relative z-[3] text-sm sm:text-base w-full max-w-full"
         >
           {Icon && <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4 shrink-0" />}
-          <span className="truncate">{label}</span>
+          <span className="truncate block overflow-hidden text-ellipsis whitespace-nowrap">{label}</span>
         </a>
         <span className="gooey-effect filter" ref={filterRef} />
         <span className="gooey-effect text" ref={textRef} />

@@ -101,8 +101,8 @@ export function CardNavigation({
     >
       <div
         className={cn(
-          "block h-[60px] p-0 bg-background/95 backdrop-blur-md border border-border rounded-xl shadow-lg relative transition-[height,opacity] duration-300 ease-out",
-          isOpen && "h-auto min-h-[60px]"
+          "block h-[60px] p-0 bg-background/95 backdrop-blur-md border border-border rounded-xl shadow-lg relative transition-[height] duration-300 ease-out overflow-hidden",
+          isOpen && "h-auto min-h-[60px] pb-2"
         )}
       >
         {/* Top bar */}
@@ -159,17 +159,17 @@ export function CardNavigation({
         {/* Navigation content */}
         <div
           className={cn(
-            "absolute left-0 right-0 top-[60px] bottom-0 p-2 flex flex-col sm:flex-row items-stretch sm:items-end gap-2 sm:gap-3 transition-[opacity,visibility] duration-200 ease-out",
+            "left-0 right-0 top-[60px] p-2 flex flex-col sm:flex-row items-stretch sm:items-start gap-2 sm:gap-3 transition-[opacity,visibility,max-height] duration-300 ease-out",
             isOpen
-              ? "visible opacity-100 pointer-events-auto"
-              : "invisible opacity-0 pointer-events-none"
+              ? "visible opacity-100 pointer-events-auto relative max-h-[500px]"
+              : "invisible opacity-0 pointer-events-none absolute max-h-0"
           )}
         >
           {navCards.map((card, index) => (
             <div
               key={index}
               data-card-container
-              className="h-auto sm:h-full flex-1 min-w-0 min-h-[60px] sm:min-h-0 rounded-[calc(0.75rem-0.2rem)] relative flex flex-col p-3 sm:p-4 gap-2 select-none bg-card/95 backdrop-blur-sm border border-border/20 hover:bg-card transition-colors duration-200 overflow-hidden"
+              className="h-auto sm:h-full flex-1 min-w-0 min-h-[120px] sm:min-h-[180px] rounded-[calc(0.75rem-0.2rem)] relative flex flex-col p-3 sm:p-4 gap-2 select-none bg-card/95 backdrop-blur-sm border border-border/20 hover:bg-card transition-colors duration-200"
               style={{ minHeight: 'fit-content' }}
             >
               <h3 className="font-normal text-lg sm:text-xl md:text-[22px] leading-tight tracking-[-0.5px] text-foreground">

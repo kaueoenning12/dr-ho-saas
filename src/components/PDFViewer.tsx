@@ -154,28 +154,32 @@ export function PDFViewer({ document }: PDFViewerProps) {
     const fetchPdfAsBlob = async () => {
       try {
         setIsFetchingPdf(true);
+        console.log("[PDFViewer] Iniciando fetch do PDF:", document.pdfUrl);
 
-        const response = await fetch(document.pdfUrl, {
-          method: "GET",
-          headers: {
-            "Cache-Control": "no-cache, no-store, must-revalidate",
-            Pragma: "no-cache",
-            Expires: "0",
-          },
-          credentials: "include",
-        });
+        // Fetch simples - a URL assinada já tem o token, não precisa de credentials
+        const response = await fetch(document.pdfUrl);
+        
+        console.log("[PDFViewer] Response status:", response.status);
+        console.log("[PDFViewer] Response headers:", Object.fromEntries(response.headers.entries()));
 
         if (!response.ok) {
-          throw new Error(`Erro ao buscar PDF: ${response.statusText}`);
+          throw new Error(`Erro ao buscar PDF: ${response.status} ${response.statusText}`);
         }
 
         const blob = await response.blob();
+        console.log("[PDFViewer] PDF blob criado, tamanho:", blob.size, "bytes");
+        
         const objectUrl = URL.createObjectURL(blob);
+        console.log("[PDFViewer] Object URL criada:", objectUrl);
 
         setPdfSource(objectUrl);
         setIsLoading(false);
       } catch (error: any) {
-        console.error("[PDFViewer] Erro ao carregar PDF:", error);
+        console.error("[PDFViewer] Erro completo:", {
+          message: error.message,
+          stack: error.stack,
+          url: document.pdfUrl
+        });
         toast.error("Erro ao carregar o PDF. Tente novamente.");
         setIsLoading(false);
       } finally {

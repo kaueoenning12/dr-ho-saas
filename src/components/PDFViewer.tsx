@@ -17,10 +17,16 @@ import {
   pdfjs,
 } from "react-pdf";
 
-pdfjs.GlobalWorkerOptions.workerSrc = new URL(
-  "pdfjs-dist/build/pdf.worker.min.js",
-  import.meta.url,
-).toString();
+// Configurar o worker do PDF.js via CDN (garante compatibilidade de versões)
+try {
+  pdfjs.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+  console.log("[PDFViewer] Worker configurado:", pdfjs.GlobalWorkerOptions.workerSrc);
+  console.log("[PDFViewer] PDF.js version:", pdfjs.version);
+} catch (error) {
+  console.error("[PDFViewer] Erro ao configurar worker:", error);
+  // Fallback para unpkg se jsDelivr falhar
+  pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+}
 
 interface PDFViewerProps {
   document: ViewerDocument | null;

@@ -36,6 +36,82 @@ export interface DocumentFilters {
   parentFolderId?: string | null;
 }
 
+export interface DocumentStats {
+  views: number;
+  likes: number;
+  comments: number;
+}
+
+// Fetch statistics for multiple documents
+export async function fetchDocumentsStats(documentIds: string[]): Promise<Record<string, DocumentStats>> {
+  if (documentIds.length === 0) return {};
+
+  // Fetch views count grouped by document_id
+  const { data: viewsData, error: viewsError } = await supabase
+    .from("document_views")
+    .select("document_id")
+    .in("document_id", documentIds);
+
+  if (viewsError) {
+    console.error("Error fetching views:", viewsError);
+  }
+
+  // Fetch likes count grouped by document_id
+  const { data: likesData, error: likesError } = await supabase
+    .from("document_likes")
+    .select("document_id")
+    .in("document_id", documentIds);
+
+  if (likesError) {
+    console.error("Error fetching likes:", likesError);
+  }
+
+  // Fetch comments count grouped by document_id
+  const { data: commentsData, error: commentsError } = await supabase
+    .from("document_comments")
+    .select("document_id")
+    .in("document_id", documentIds);
+
+  if (commentsError) {
+    console.error("Error fetching comments:", commentsError);
+  }
+
+  // Initialize stats object with zeros
+  const stats: Record<string, DocumentStats> = {};
+  documentIds.forEach((id) => {
+    stats[id] = { views: 0, likes: 0, comments: 0 };
+  });
+
+  // Count views
+  if (viewsData) {
+    viewsData.forEach((view) => {
+      if (view.document_id && stats[view.document_id]) {
+        stats[view.document_id].views++;
+      }
+    });
+  }
+
+  // Count likes
+  if (likesData) {
+    likesData.forEach((like) => {
+      if (like.document_id && stats[like.document_id]) {
+        stats[like.document_id].likes++;
+      }
+    });
+  }
+
+  // Count comments
+  if (commentsData) {
+    commentsData.forEach((comment) => {
+      if (comment.document_id && stats[comment.document_id]) {
+        stats[comment.document_id].comments++;
+      }
+    });
+  }
+
+  return stats;
+}
+
 // Fetch all published documents
 export function useDocuments(filters?: DocumentFilters) {
   return useQuery({
@@ -99,8 +175,23 @@ export function useDocuments(filters?: DocumentFilters) {
           return { ...doc, pdf_url: signedUrl };
         })
       );
+
+      // Fetch statistics for all documents
+      const documentIds = documentsWithSignedUrls.map((doc) => doc.id);
+      const stats = await fetchDocumentsStats(documentIds);
+
+      // Add statistics to each document
+      const documentsWithStats = documentsWithSignedUrls.map((doc) => {
+        const docStats = stats[doc.id] || { views: 0, likes: 0, comments: 0 };
+        return {
+          ...doc,
+          views: docStats.views,
+          likes: docStats.likes,
+          comments: docStats.comments,
+        };
+      });
       
-      return documentsWithSignedUrls;
+      return documentsWithStats;
     },
   });
 }
@@ -272,6 +363,9 @@ export function useToggleDocumentLike() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["document-likes"] });
       queryClient.invalidateQueries({ queryKey: ["user-document-like"] });
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
+      queryClient.invalidateQueries({ queryKey: ["root-contents"] });
+      queryClient.invalidateQueries({ queryKey: ["folder-contents"] });
     },
   });
 }

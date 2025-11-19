@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
+import { fetchDocumentsStats, type DocumentStats } from "./useDocumentsQuery";
 
 type Folder = Database["public"]["Tables"]["document_folders"]["Row"];
 
@@ -62,9 +63,24 @@ export function useFolderContents(folderId: string | null) {
 
       if (documentsError) throw documentsError;
 
+      // Fetch statistics for documents
+      const documentIds = (documents || []).map((doc) => doc.id);
+      const stats = await fetchDocumentsStats(documentIds);
+
+      // Add statistics to each document
+      const documentsWithStats = (documents || []).map((doc) => {
+        const docStats = stats[doc.id] || { views: 0, likes: 0, comments: 0 };
+        return {
+          ...doc,
+          views: docStats.views,
+          likes: docStats.likes,
+          comments: docStats.comments,
+        };
+      });
+
       return {
         folders: (folders || []) as Folder[],
-        documents: documents || [],
+        documents: documentsWithStats,
       };
     },
     enabled: folderId !== null,
@@ -125,9 +141,24 @@ export function useRootContents() {
         return { folders, documents: [] };
       }
 
+      // Fetch statistics for documents
+      const documentIds = documents.map((doc: any) => doc.id);
+      const stats = await fetchDocumentsStats(documentIds);
+
+      // Add statistics to each document
+      const documentsWithStats = documents.map((doc: any) => {
+        const docStats = stats[doc.id] || { views: 0, likes: 0, comments: 0 };
+        return {
+          ...doc,
+          views: docStats.views,
+          likes: docStats.likes,
+          comments: docStats.comments,
+        };
+      });
+
       return {
         folders,
-        documents,
+        documents: documentsWithStats,
       };
     },
   });

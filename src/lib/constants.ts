@@ -16,13 +16,13 @@ export const NOTIFICATION_TYPES = {
 } as const;
 
 export const DOCUMENT_CATEGORIES = [
-  "All",
+  "Todas",
   "SST",
-  "PPE",
-  "Training",
-  "Procedures",
-  "Reports",
-  "Regulations",
+  "EPI",
+  "Treinamento",
+  "Procedimentos",
+  "Relatórios",
+  "Normas Regulamentadoras",
 ] as const;
 
 export const SORT_OPTIONS = [

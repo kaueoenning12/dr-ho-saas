@@ -1,9 +1,12 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Heart, MessageCircle, Eye, Sparkles, Lock } from "lucide-react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Document } from "@/lib/mockData";
 import { isDocumentNew } from "@/lib/utils";
+import { useAuth } from "@/contexts/AuthContext";
+import { useUserDocumentLike, useDocumentLikes, useToggleDocumentLike } from "@/hooks/useDocumentsQuery";
+import { toast } from "sonner";
 
 interface DocumentCardProps {
   document: Document & {
@@ -14,15 +17,72 @@ interface DocumentCardProps {
 }
 
 export function DocumentCard({ document, onOpen }: DocumentCardProps) {
-  const [liked, setLiked] = useState(false);
-  const [likes, setLikes] = useState(document.likes);
+  const { user } = useAuth();
   const isNew = isDocumentNew(document.publishedAt);
   const isPremium = document.is_premium || false;
   const isLocked = isPremium && !document.is_unlocked;
 
-  const handleLike = () => {
-    setLiked(!liked);
-    setLikes(liked ? likes - 1 : likes + 1);
+  // Verificar se o usuário já deu like
+  const { data: userLike, isLoading: isLoadingUserLike } = useUserDocumentLike(
+    document.id,
+    user?.id
+  );
+
+  // Buscar total de likes do banco
+  const { data: totalLikes = 0, isLoading: isLoadingLikes } = useDocumentLikes(document.id);
+
+  // Mutation para dar/remover like
+  const toggleLikeMutation = useToggleDocumentLike();
+
+  // Estado local sincronizado com o banco
+  const [liked, setLiked] = useState(false);
+  const [likes, setLikes] = useState(document.likes);
+
+  // Sincronizar estado com dados do banco quando carregar
+  useEffect(() => {
+    if (!isLoadingUserLike) {
+      setLiked(!!userLike);
+    }
+  }, [userLike, isLoadingUserLike]);
+
+  useEffect(() => {
+    if (!isLoadingLikes) {
+      setLikes(totalLikes);
+    } else {
+      // Usar valor do documento enquanto carrega
+      setLikes(document.likes);
+    }
+  }, [totalLikes, isLoadingLikes, document.likes]);
+
+  const handleLike = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+
+    if (!user) {
+      toast.error("Você precisa estar logado para curtir documentos");
+      return;
+    }
+
+    // Otimistic update
+    const wasLiked = liked;
+    const previousLikes = likes;
+    setLiked(!wasLiked);
+    setLikes(wasLiked ? likes - 1 : likes + 1);
+
+    try {
+      const newLikedState = await toggleLikeMutation.mutateAsync({
+        documentId: document.id,
+        userId: user.id,
+      });
+
+      // Atualizar estado com resultado real
+      setLiked(newLikedState);
+    } catch (error: any) {
+      // Reverter em caso de erro
+      setLiked(wasLiked);
+      setLikes(previousLikes);
+      toast.error("Erro ao curtir documento. Tente novamente.");
+      console.error("Erro ao dar like:", error);
+    }
   };
 
   return (
@@ -102,11 +162,9 @@ export function DocumentCard({ document, onOpen }: DocumentCardProps) {
             <span className="font-light text-[11px] sm:text-[13px]">{document.views}</span>
           </div>
           <button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleLike();
-            }}
-            className="group/like flex items-center gap-1 sm:gap-1.5 hover:text-aqua transition-all duration-300 active:scale-90 pointer-events-auto"
+            onClick={handleLike}
+            disabled={toggleLikeMutation.isPending || !user}
+            className="group/like flex items-center gap-1 sm:gap-1.5 hover:text-aqua transition-all duration-300 active:scale-90 pointer-events-auto disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Heart className={`h-3.5 sm:h-4 w-3.5 sm:w-4 stroke-[1.5] transition-all duration-300 ${
               liked 

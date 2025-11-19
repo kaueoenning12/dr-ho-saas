@@ -188,7 +188,18 @@ export function PDFViewer({ document }: PDFViewerProps) {
           stack: error.stack,
           url: document.pdfUrl
         });
-        toast.error("Erro ao carregar o PDF. Tente novamente.");
+        
+        // Mensagem de erro mais específica
+        let errorMessage = "Erro ao carregar o PDF. Tente novamente.";
+        if (error.message.includes('400')) {
+          errorMessage = "Arquivo não encontrado ou URL inválida. Verifique se o documento existe.";
+        } else if (error.message.includes('403')) {
+          errorMessage = "Acesso negado ao arquivo. Verifique suas permissões.";
+        } else if (error.message.includes('404')) {
+          errorMessage = "Arquivo não encontrado no servidor.";
+        }
+        
+        toast.error(errorMessage);
         setIsLoading(false);
       } finally {
         setIsFetchingPdf(false);
@@ -212,10 +223,12 @@ export function PDFViewer({ document }: PDFViewerProps) {
       if (containerRef.current) {
         const containerWidth = containerRef.current.clientWidth;
         // 595 é a largura padrão de uma página A4 em pontos
-        // Subtraímos 120px (60px de cada lado) para margens mais generosas
-        const calculatedScale = (containerWidth - 120) / 595;
-        // Limitar entre 0.8 e 1.6 para evitar que fique muito grande
-        const boundedScale = Math.max(0.8, Math.min(1.6, calculatedScale));
+        // Usar margens menores (32px no mobile, 48px no desktop) para melhor aproveitamento do espaço
+        const isMobile = containerWidth < 768;
+        const horizontalMargin = isMobile ? 32 : 48;
+        const calculatedScale = (containerWidth - horizontalMargin) / 595;
+        // Limitar entre 0.7 e 2.0 para permitir melhor adaptação
+        const boundedScale = Math.max(0.7, Math.min(2.0, calculatedScale));
         setAutoScale(boundedScale);
         setScale(boundedScale);
       }
@@ -244,7 +257,10 @@ export function PDFViewer({ document }: PDFViewerProps) {
   const getPageWidth = () => {
     if (!containerRef.current) return undefined;
     const containerWidth = containerRef.current.clientWidth;
-    const baseWidth = containerWidth - 120; // margens de 60px cada lado
+    // Usar margens menores (32px no mobile, 48px no desktop)
+    const isMobile = containerWidth < 768;
+    const horizontalMargin = isMobile ? 32 : 48;
+    const baseWidth = containerWidth - horizontalMargin;
     
     // Se scale está no auto (fit-to-page), usar largura base
     if (Math.abs(scale - autoScale) < 0.01) {
@@ -402,7 +418,7 @@ export function PDFViewer({ document }: PDFViewerProps) {
 
             {pdfSource && (
               <div 
-                className="flex flex-col items-center py-8 space-y-4 bg-gray-50 min-h-full"
+                className="flex flex-col items-center py-4 sm:py-6 space-y-4 bg-gray-50 min-h-full px-2 sm:px-4"
                 style={{
                   userSelect: 'none',
                   WebkitUserSelect: 'none',

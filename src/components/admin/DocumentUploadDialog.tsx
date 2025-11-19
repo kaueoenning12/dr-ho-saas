@@ -529,11 +529,11 @@ export function DocumentUploadDialog({ onSuccess }: DocumentUploadDialogProps) {
                   <Select onValueChange={field.onChange} defaultValue={field.value}>
                     <FormControl>
                       <SelectTrigger className="h-11 text-[15px] font-normal border-border/60 rounded-lg focus:ring-accent/20 focus:border-accent">
-                        <SelectValue placeholder="Select a category" />
+                        <SelectValue placeholder="Selecione uma categoria" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {DOCUMENT_CATEGORIES.filter((c) => c !== "All").map((category) => (
+                      {DOCUMENT_CATEGORIES.filter((c) => c !== "Todas").map((category) => (
                         <SelectItem key={category} value={category} className="text-[14px]">
                           {category}
                         </SelectItem>

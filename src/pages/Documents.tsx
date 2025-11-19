@@ -232,9 +232,9 @@ export default function Documents() {
                             keywords: document.keywords || [],
                             pdfUrl: document.pdf_url,
                             publishedAt: document.published_at,
-                            views: 0,
-                            likes: 0,
-                            comments: 0,
+                            views: (document as any).views || 0,
+                            likes: (document as any).likes || 0,
+                            comments: (document as any).comments || 0,
                           }} onOpen={() => handleOpenDocument(document)} />
                         </div>
                       ))}

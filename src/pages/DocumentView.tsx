@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Loader2, Shield, FileText, Home, MessageSquare, MessageCircle, Megaphone, Lightbulb, CreditCard, Settings } from "lucide-react";
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { ArrowLeft, Loader2, Shield, FileText, Home, MessageSquare, MessageCircle, Megaphone, Lightbulb, CreditCard, Settings, Download } from "lucide-react";
+import { SidebarProvider, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { MobileSidebar } from "@/components/layout/MobileSidebar";
 import { UserProfileMenu } from "@/components/layout/UserProfileMenu";
@@ -16,8 +16,16 @@ import { useDocumentUnlock } from "@/hooks/usePremiumDocuments";
 import { PremiumDocumentUnlock } from "@/components/PremiumDocumentUnlock";
 import { useSignedPdfUrl } from "@/hooks/useSignedPdfUrl";
 import { PDFViewer } from "@/components/PDFViewer";
+import { DocxViewer } from "@/components/DocxViewer";
 
-export default function DocumentView() {
+function DocumentViewContent() {
+  const { setOpen } = useSidebar();
+  
+  // Colapsar sidebar automaticamente quando o componente monta
+  useEffect(() => {
+    setOpen(false);
+  }, [setOpen]);
+
   const [showProtectionWarning, setShowProtectionWarning] = useState(false);
   const { user } = useAuth();
   const { id } = useParams<{ id: string }>();
@@ -47,9 +55,23 @@ export default function DocumentView() {
   const shouldShowUnlockScreen = isPremium && !isUnlocked && !isUnlockLoading;
 
   // Generate signed URL for PDF (only if unlocked)
-  const { signedUrl, isLoading: isLoadingSignedUrl } = useSignedPdfUrl(
+  const { signedUrl, isLoading: isLoadingSignedUrl, error: signedUrlError } = useSignedPdfUrl(
     isUnlocked && document?.pdf_url ? document.pdf_url : null
   );
+
+  // Helper function to detect file type
+  const getFileType = (url: string | null | undefined): 'pdf' | 'docx' | 'other' => {
+    if (!url) return 'other';
+    // Remove query params and check extension
+    const urlWithoutParams = url.split('?')[0].toLowerCase();
+    if (urlWithoutParams.endsWith('.pdf')) return 'pdf';
+    if (urlWithoutParams.endsWith('.docx') || urlWithoutParams.endsWith('.doc')) return 'docx';
+    return 'other';
+  };
+
+  const fileType = document?.pdf_url ? getFileType(document.pdf_url) : 'other';
+  const isDocumentPdf = fileType === 'pdf';
+  const isDocumentDocx = fileType === 'docx';
 
   useEffect(() => {
     if (!document) return;
@@ -190,15 +212,14 @@ export default function DocumentView() {
   ];
 
   return (
-    <SidebarProvider defaultOpen={false}>
-      <div className="min-h-screen flex w-full bg-background">
-        <AppSidebar />
-        <CardNavigation
-          navCards={navCards}
-          showOnScroll={true}
-          scrollThreshold={100}
-        />
-        <main className="flex-1 flex flex-col min-w-0 overflow-x-hidden">
+    <div className="min-h-screen flex w-full bg-background">
+      <AppSidebar />
+      <CardNavigation
+        navCards={navCards}
+        showOnScroll={true}
+        scrollThreshold={100}
+      />
+      <main className="flex-1 flex flex-col min-w-0 overflow-x-hidden">
           <header className="border-b border-cyan/20 bg-background/95 backdrop-blur-md sticky top-0 z-10 shadow-sm">
             <div className="flex items-center gap-2 sm:gap-3 md:gap-4 px-3 sm:px-4 md:px-6 py-2 sm:py-2.5">
               <div className="flex items-center gap-1.5">
@@ -364,21 +385,95 @@ export default function DocumentView() {
                 </div>
 
                 <div className="relative w-full h-full">
-                  {signedUrl ? (
-                    <PDFViewer 
-                      document={{
-                        id: document.id,
-                        title: document.title,
-                        pdfUrl: signedUrl,
-                        category: document.category,
-                        keywords: [],
-                        description: "",
-                        publishedAt: "",
-                        views: 0,
-                        likes: 0,
-                        comments: 0,
-                      }}
-                    />
+                  {signedUrlError ? (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <div className="text-center space-y-4 max-w-md px-4">
+                        <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-6">
+                          <Shield className="h-12 w-12 text-destructive mx-auto mb-4" />
+                          <h3 className="text-lg font-semibold text-foreground mb-2">
+                            Erro ao carregar documento
+                          </h3>
+                          <p className="text-sm text-muted-foreground mb-4">
+                            {signedUrlError}
+                          </p>
+                          <Button
+                            variant="outline"
+                            onClick={() => navigate(-1)}
+                            className="w-full"
+                          >
+                            <ArrowLeft className="h-4 w-4 mr-2" />
+                            Voltar
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : signedUrl ? (
+                    isDocumentPdf ? (
+                      <PDFViewer 
+                        document={{
+                          id: document.id,
+                          title: document.title,
+                          pdfUrl: signedUrl,
+                          category: document.category,
+                          keywords: [],
+                          description: "",
+                          publishedAt: "",
+                          views: 0,
+                          likes: 0,
+                          comments: 0,
+                        }}
+                      />
+                    ) : isDocumentDocx ? (
+                      <DocxViewer 
+                        document={{
+                          id: document.id,
+                          title: document.title,
+                          pdfUrl: signedUrl,
+                          category: document.category,
+                        }}
+                      />
+                    ) : (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="text-center space-y-6 max-w-lg px-4">
+                          <div className="bg-card border border-border rounded-lg p-8 shadow-lg">
+                            <FileText className="h-16 w-16 text-cyan mx-auto mb-4" />
+                            <h3 className="text-xl font-semibold text-foreground mb-2">
+                              {document.title}
+                            </h3>
+                            <p className="text-sm text-muted-foreground mb-6">
+                              Este arquivo não pode ser visualizado diretamente no navegador.
+                              Faça o download para abrir com o aplicativo apropriado.
+                            </p>
+                            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                              <Button
+                                onClick={() => {
+                                  if (signedUrl) {
+                                    const link = document.createElement('a');
+                                    link.href = signedUrl;
+                                    link.download = document.title;
+                                    link.target = '_blank';
+                                    document.body.appendChild(link);
+                                    link.click();
+                                    document.body.removeChild(link);
+                                  }
+                                }}
+                                className="bg-cyan hover:bg-cyan/90 text-white"
+                              >
+                                <Download className="h-4 w-4 mr-2" />
+                                Baixar Documento
+                              </Button>
+                              <Button
+                                variant="outline"
+                                onClick={() => navigate(-1)}
+                              >
+                                <ArrowLeft className="h-4 w-4 mr-2" />
+                                Voltar
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )
                   ) : (
                     <div className="absolute inset-0 flex items-center justify-center">
                       <div className="text-center space-y-2">
@@ -393,8 +488,15 @@ export default function DocumentView() {
               </div>
             )}
           </div>
-        </main>
-      </div>
+      </main>
+    </div>
+  );
+}
+
+export default function DocumentView() {
+  return (
+    <SidebarProvider defaultOpen={false}>
+      <DocumentViewContent />
     </SidebarProvider>
   );
 }

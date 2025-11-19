@@ -3,7 +3,7 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { MobileSidebar } from "@/components/layout/MobileSidebar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Users, FileText, Eye, Heart, Search, UserCheck, UserX, Activity } from "lucide-react";
+import { Users, FileText, Eye, Heart, Search, UserCheck, UserX, Activity, Star } from "lucide-react";
 import { DocumentUploadDialog } from "@/components/admin/DocumentUploadDialog";
 import { UserProfileMenu } from "@/components/layout/UserProfileMenu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -20,14 +20,18 @@ import { useDocuments } from "@/hooks/useDocumentsQuery";
 import { useUsers } from "@/hooks/useUsersQuery";
 import { useDocumentStats, useUserStats } from "@/hooks/useAdminStats";
 import { useSubscriptionPlans } from "@/hooks/useSubscriptionsQuery";
+import { useRatings } from "@/hooks/useRatingsQuery";
+import { StarRating } from "@/components/StarRating";
 
 export default function Admin() {
   const [searchTerm, setSearchTerm] = useState("");
+  const [ratingsSearchTerm, setRatingsSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState("stats");
 
   const { data: documents = [], isLoading: documentsLoading, refetch: refetchDocuments } = useDocuments();
   const { data: users = [], isLoading: usersLoading, refetch: refetchUsers } = useUsers();
   const { data: plans = [], isLoading: plansLoading, refetch: refetchPlans } = useSubscriptionPlans();
+  const { data: ratings = [], isLoading: ratingsLoading } = useRatings();
   const { data: documentStats } = useDocumentStats();
   const { data: userStats } = useUserStats();
 
@@ -49,6 +53,26 @@ export default function Admin() {
     user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     user.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const filteredRatings = ratings.filter(rating => {
+    const searchLower = ratingsSearchTerm.toLowerCase();
+    return (
+      rating.profile?.name.toLowerCase().includes(searchLower) ||
+      rating.profile?.email.toLowerCase().includes(searchLower) ||
+      rating.document?.title.toLowerCase().includes(searchLower) ||
+      rating.document?.category.toLowerCase().includes(searchLower)
+    );
+  });
+
+  // Calcular estatísticas de avaliações
+  const totalRatings = ratings.length;
+  const averageRating = totalRatings > 0
+    ? (ratings.reduce((sum, r) => sum + r.rating, 0) / totalRatings).toFixed(1)
+    : "0.0";
+  const ratingDistribution = [1, 2, 3, 4, 5].map(star => ({
+    stars: star,
+    count: ratings.filter(r => r.rating === star).length,
+  }));
 
   const stats = [
     { label: "Total de Documentos", value: totalDocuments, icon: FileText },
@@ -78,11 +102,12 @@ export default function Admin() {
 
           <div className="px-3 sm:px-6 py-4 sm:py-8">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-1 mb-6 h-auto p-1">
+              <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-1 mb-6 h-auto p-1">
                 <TabsTrigger value="stats" className="text-xs sm:text-sm px-2 sm:px-3 transition-all duration-200 hover:scale-105 active:scale-95">Estatísticas</TabsTrigger>
                 <TabsTrigger value="documents" className="text-xs sm:text-sm px-2 sm:px-3 transition-all duration-200 hover:scale-105 active:scale-95">Documentos</TabsTrigger>
                 <TabsTrigger value="users" className="text-xs sm:text-sm px-2 sm:px-3 transition-all duration-200 hover:scale-105 active:scale-95">Usuários</TabsTrigger>
                 <TabsTrigger value="plans" className="text-xs sm:text-sm px-2 sm:px-3 transition-all duration-200 hover:scale-105 active:scale-95">Planos</TabsTrigger>
+                <TabsTrigger value="ratings" className="text-xs sm:text-sm px-2 sm:px-3 transition-all duration-200 hover:scale-105 active:scale-95">Avaliações</TabsTrigger>
                 <TabsTrigger value="notifications" className="text-xs sm:text-sm px-2 sm:px-3 transition-all duration-200 hover:scale-105 active:scale-95 col-span-2 sm:col-span-1">Notificações</TabsTrigger>
               </TabsList>
 
@@ -362,6 +387,150 @@ export default function Admin() {
                         </Table>
                         {plans.length === 0 && (
                           <p className="text-center text-muted-foreground py-10">Nenhum plano cadastrado</p>
+                        )}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              {/* Tab: Avaliações */}
+              <TabsContent value="ratings" className="mt-0">
+                <div className="grid gap-4 sm:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 mb-6">
+                  <Card className="border border-cyan/10 shadow-elegant">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 sm:pb-3 px-4 sm:px-6 pt-4 sm:pt-6">
+                      <CardTitle className="text-[12px] sm:text-[13px] font-medium text-muted-foreground">
+                        Total de Avaliações
+                      </CardTitle>
+                      <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-lg bg-cyan/10 flex items-center justify-center shrink-0">
+                        <Star className="h-4 w-4 sm:h-5 sm:w-5 text-cyan stroke-[1.5]" />
+                      </div>
+                    </CardHeader>
+                    <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
+                      <div className="text-[24px] sm:text-[28px] font-semibold tracking-tight text-foreground">{totalRatings}</div>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="border border-cyan/10 shadow-elegant">
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 sm:pb-3 px-4 sm:px-6 pt-4 sm:pt-6">
+                      <CardTitle className="text-[12px] sm:text-[13px] font-medium text-muted-foreground">
+                        Média de Avaliações
+                      </CardTitle>
+                      <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-lg bg-cyan/10 flex items-center justify-center shrink-0">
+                        <Star className="h-4 w-4 sm:h-5 sm:w-5 text-cyan stroke-[1.5] fill-cyan" />
+                      </div>
+                    </CardHeader>
+                    <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
+                      <div className="text-[24px] sm:text-[28px] font-semibold tracking-tight text-foreground">{averageRating}</div>
+                    </CardContent>
+                  </Card>
+
+                  {ratingDistribution.slice(0, 2).map((dist) => (
+                    <Card key={dist.stars} className="border border-cyan/10 shadow-elegant">
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 sm:pb-3 px-4 sm:px-6 pt-4 sm:pt-6">
+                        <CardTitle className="text-[12px] sm:text-[13px] font-medium text-muted-foreground">
+                          {dist.stars} Estrela{dist.stars > 1 ? "s" : ""}
+                        </CardTitle>
+                        <div className="h-9 w-9 sm:h-10 sm:w-10 rounded-lg bg-cyan/10 flex items-center justify-center shrink-0">
+                          <Star className="h-4 w-4 sm:h-5 sm:w-5 text-cyan stroke-[1.5]" />
+                        </div>
+                      </CardHeader>
+                      <CardContent className="px-4 sm:px-6 pb-4 sm:pb-6">
+                        <div className="text-[24px] sm:text-[28px] font-semibold tracking-tight text-foreground">{dist.count}</div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+
+                <Card className="border border-cyan/10 shadow-elegant">
+                  <CardHeader className="px-4 sm:px-6 py-4 border-b border-cyan/10">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                      <div>
+                        <CardTitle className="text-[16px] sm:text-[18px] font-semibold text-navy">
+                          Todas as Avaliações
+                        </CardTitle>
+                        <CardDescription className="text-[13px] sm:text-[14px] font-light mt-1 text-navy/60">
+                          Visualize todas as avaliações feitas pelos usuários nos documentos premium
+                        </CardDescription>
+                      </div>
+                      <div className="relative w-full sm:w-64">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          placeholder="Buscar por usuário ou documento..."
+                          value={ratingsSearchTerm}
+                          onChange={(e) => setRatingsSearchTerm(e.target.value)}
+                          className="pl-9"
+                        />
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    {ratingsLoading ? (
+                      <div className="text-center py-10">
+                        <div className="inline-block h-6 w-6 animate-spin rounded-full border-3 border-solid border-cyan border-r-transparent"></div>
+                        <p className="text-muted-foreground text-sm mt-2">Carregando avaliações...</p>
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <Table className="min-w-full">
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="min-w-[200px]">Usuário</TableHead>
+                              <TableHead className="min-w-[200px]">Documento</TableHead>
+                              <TableHead className="min-w-[150px]">Avaliação</TableHead>
+                              <TableHead className="min-w-[120px] hidden md:table-cell">Data</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {filteredRatings.map((rating) => (
+                              <TableRow key={rating.id} className="hover:bg-cyan/5">
+                                <TableCell className="font-medium">
+                                  <div>
+                                    <p className="font-medium text-sm text-navy">{rating.profile?.name || "Usuário"}</p>
+                                    <p className="text-xs text-muted-foreground">{rating.profile?.email || "Email não disponível"}</p>
+                                  </div>
+                                </TableCell>
+                                <TableCell>
+                                  <div>
+                                    <p className="font-medium text-sm text-navy">{rating.document?.title || "Documento"}</p>
+                                    <p className="text-xs text-muted-foreground">{rating.document?.category || ""}</p>
+                                  </div>
+                                </TableCell>
+                                <TableCell>
+                                  <div className="flex items-center gap-2">
+                                    <StarRating rating={rating.rating} readonly size="sm" />
+                                    <span className="text-sm text-muted-foreground">({rating.rating}/5)</span>
+                                  </div>
+                                </TableCell>
+                                <TableCell className="hidden md:table-cell">
+                                  <span className="text-sm text-muted-foreground">
+                                    {rating.unlocked_at
+                                      ? new Date(rating.unlocked_at).toLocaleDateString('pt-BR', {
+                                          day: '2-digit',
+                                          month: '2-digit',
+                                          year: 'numeric',
+                                          hour: '2-digit',
+                                          minute: '2-digit',
+                                        })
+                                      : rating.created_at
+                                      ? new Date(rating.created_at).toLocaleDateString('pt-BR', {
+                                          day: '2-digit',
+                                          month: '2-digit',
+                                          year: 'numeric',
+                                          hour: '2-digit',
+                                          minute: '2-digit',
+                                        })
+                                      : '-'}
+                                  </span>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                        {filteredRatings.length === 0 && (
+                          <p className="text-center text-muted-foreground py-10">
+                            {ratingsSearchTerm ? "Nenhuma avaliação encontrada com os filtros aplicados" : "Nenhuma avaliação encontrada"}
+                          </p>
                         )}
                       </div>
                     )}

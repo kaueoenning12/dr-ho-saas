@@ -159,23 +159,23 @@ export function CardNavigation({
         {/* Navigation content */}
         <div
           className={cn(
-            "left-0 right-0 top-[60px] p-2 flex flex-col sm:flex-row items-stretch sm:items-start gap-2 sm:gap-3 transition-[opacity,visibility,max-height] duration-300 ease-out",
+            "left-0 right-0 top-[60px] p-2 flex flex-col sm:flex-row items-stretch sm:items-start gap-2 sm:gap-3 transition-[opacity,visibility,max-height] duration-300 ease-out overflow-y-auto",
             isOpen
-              ? "visible opacity-100 pointer-events-auto relative max-h-[500px]"
-              : "invisible opacity-0 pointer-events-none absolute max-h-0"
+              ? "visible opacity-100 pointer-events-auto relative max-h-[400px] sm:max-h-[300px]"
+              : "invisible opacity-0 pointer-events-none absolute max-h-0 overflow-hidden"
           )}
         >
           {navCards.map((card, index) => (
             <div
               key={index}
               data-card-container
-              className="h-auto sm:h-full flex-1 min-w-0 min-h-[120px] sm:min-h-[180px] rounded-[calc(0.75rem-0.2rem)] relative flex flex-col p-3 sm:p-4 gap-2 select-none bg-card/95 backdrop-blur-sm border border-border/20 hover:bg-card transition-colors duration-200"
+              className="h-auto sm:h-full flex-1 min-w-0 max-w-full min-h-[120px] sm:min-h-[180px] rounded-[calc(0.75rem-0.2rem)] relative flex flex-col p-3 sm:p-4 gap-2 select-none bg-card/95 backdrop-blur-sm border border-border/20 hover:bg-card transition-colors duration-200 overflow-hidden"
               style={{ minHeight: 'fit-content' }}
             >
-              <h3 className="font-normal text-lg sm:text-xl md:text-[22px] leading-tight tracking-[-0.5px] text-foreground">
+              <h3 className="font-normal text-lg sm:text-xl md:text-[22px] leading-tight tracking-[-0.5px] text-foreground truncate">
                 {card.label}
               </h3>
-              <ul className="mt-auto flex flex-col gap-0.5 list-none p-0 m-0 relative">
+              <ul className="mt-auto flex flex-col gap-0.5 list-none p-0 m-0 relative overflow-hidden">
                 {card.links.map((link, linkIndex) => (
                   <GooeyNavLink
                     key={linkIndex}

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
   Shield,
   Loader2,
@@ -38,7 +38,9 @@ export function PDFViewer({ document }: PDFViewerProps) {
   const [isFetchingPdf, setIsFetchingPdf] = useState(false);
   const [pdfSource, setPdfSource] = useState<string | null>(null);
   const [scale, setScale] = useState(1);
+  const [autoScale, setAutoScale] = useState(1);
   const [numPages, setNumPages] = useState(0);
+  const containerRef = useRef<HTMLDivElement>(null);
   const { user } = useAuth();
 
   useEffect(() => {
@@ -204,8 +206,31 @@ export function PDFViewer({ document }: PDFViewerProps) {
     };
   }, [pdfSource]);
 
+  // Calcular escala automática baseado na largura do container
+  useEffect(() => {
+    const calculateAutoScale = () => {
+      if (containerRef.current) {
+        const containerWidth = containerRef.current.clientWidth;
+        // 595 é a largura padrão de uma página A4 em pontos
+        // Subtraímos 80px (40px de cada lado) para margens
+        const calculatedScale = (containerWidth - 80) / 595;
+        // Limitar entre 0.8 e 2.5 para evitar extremos
+        const boundedScale = Math.max(0.8, Math.min(2.5, calculatedScale));
+        setAutoScale(boundedScale);
+        setScale(boundedScale);
+      }
+    };
+
+    calculateAutoScale();
+    window.addEventListener('resize', calculateAutoScale);
+
+    return () => {
+      window.removeEventListener('resize', calculateAutoScale);
+    };
+  }, [pdfSource]);
+
   const handleZoomIn = () => {
-    setScale((prev) => Math.min(prev + 0.2, 2));
+    setScale((prev) => Math.min(prev + 0.2, 2.5));
   };
 
   const handleZoomOut = () => {
@@ -213,7 +238,7 @@ export function PDFViewer({ document }: PDFViewerProps) {
   };
 
   const handleZoomReset = () => {
-    setScale(1);
+    setScale(autoScale);
   };
 
   const handlePdfLoadSuccess = ({ numPages }: { numPages: number }) => {
@@ -274,17 +299,17 @@ export function PDFViewer({ document }: PDFViewerProps) {
           variant="outline"
           size="sm"
           onClick={handleZoomIn}
-          disabled={scale >= 2}
+          disabled={scale >= 2.5}
           className="h-8 px-2"
         >
           <ZoomIn className="h-4 w-4" />
         </Button>
         <span className="ml-3 text-xs font-medium text-muted-foreground">
-          Zoom: {(scale * 100).toFixed(0)}%
+          Zoom: {(scale * 100).toFixed(0)}% {Math.abs(scale - autoScale) < 0.01 && "(Auto)"}
         </span>
       </div>
 
-      <div className="flex-1 overflow-auto bg-gradient-to-br from-muted/30 to-muted/10 relative">
+      <div ref={containerRef} className="flex-1 overflow-auto bg-white dark:bg-gray-50 relative">
         {showProtectionWarning && (
           <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm pointer-events-none animate-in fade-in duration-200">
             <div className="bg-gradient-to-r from-red-500 to-red-600 text-white px-6 py-3 rounded-xl shadow-lg flex items-center gap-2 animate-pulse">
@@ -362,7 +387,7 @@ export function PDFViewer({ document }: PDFViewerProps) {
 
             {pdfSource && (
               <div 
-                className="flex flex-col items-center py-4 space-y-4"
+                className="flex flex-col items-center py-4 space-y-4 bg-white min-h-full"
                 style={{
                   userSelect: 'none',
                   WebkitUserSelect: 'none',
@@ -384,7 +409,7 @@ export function PDFViewer({ document }: PDFViewerProps) {
                   {Array.from(new Array(numPages), (_, index) => (
                     <div
                       key={`page_${index + 1}`}
-                      className="mb-4 shadow-lg"
+                      className="mb-4 shadow-lg bg-white"
                       style={{
                         userSelect: 'none',
                         WebkitUserSelect: 'none',
@@ -395,6 +420,7 @@ export function PDFViewer({ document }: PDFViewerProps) {
                       <Page
                         pageNumber={index + 1}
                         scale={scale}
+                        width={containerRef.current ? containerRef.current.clientWidth - 80 : undefined}
                         renderTextLayer={false}
                         renderAnnotationLayer={false}
                         loading={

@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import {
   Shield,
   Loader2,
@@ -41,6 +41,8 @@ export function PDFViewer({ document }: PDFViewerProps) {
   const [autoScale, setAutoScale] = useState(1);
   const [numPages, setNumPages] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
+  const loadedPdfUrlRef = useRef<string | null>(null);
+  const pdfSourceRef = useRef<string | null>(null);
   const { user } = useAuth();
 
   useEffect(() => {
@@ -149,23 +151,39 @@ export function PDFViewer({ document }: PDFViewerProps) {
     };
   }, [document]);
 
+  // Memoize the PDF URL to prevent unnecessary re-renders
+  const pdfUrl = useMemo(() => document?.pdfUrl, [document?.pdfUrl]);
+  const documentId = useMemo(() => document?.id, [document?.id]);
+
   useEffect(() => {
-    if (!document) return;
+    if (!document || !pdfUrl) return;
 
     const hasSimulatedContent = mockDocumentContents[document.id];
     if (hasSimulatedContent) {
       setIsLoading(false);
       setIsFetchingPdf(false);
+      loadedPdfUrlRef.current = pdfUrl;
+      return;
+    }
+
+    // Skip if we already have this PDF loaded
+    if (loadedPdfUrlRef.current === pdfUrl) {
       return;
     }
 
     const fetchPdfAsBlob = async () => {
       try {
         setIsFetchingPdf(true);
-        console.log("[PDFViewer] Iniciando fetch do PDF:", document.pdfUrl);
+        console.log("[PDFViewer] Iniciando fetch do PDF:", pdfUrl);
+
+        // Revoke previous blob URL if exists and URL changed
+        if (pdfSourceRef.current?.startsWith("blob:") && loadedPdfUrlRef.current !== pdfUrl) {
+          URL.revokeObjectURL(pdfSourceRef.current);
+          pdfSourceRef.current = null;
+        }
 
         // Fetch simples - a URL assinada já tem o token, não precisa de credentials
-        const response = await fetch(document.pdfUrl);
+        const response = await fetch(pdfUrl);
         
         console.log("[PDFViewer] Response status:", response.status);
         console.log("[PDFViewer] Response headers:", Object.fromEntries(response.headers.entries()));
@@ -180,13 +198,15 @@ export function PDFViewer({ document }: PDFViewerProps) {
         const objectUrl = URL.createObjectURL(blob);
         console.log("[PDFViewer] Object URL criada:", objectUrl);
 
+        loadedPdfUrlRef.current = pdfUrl;
+        pdfSourceRef.current = objectUrl;
         setPdfSource(objectUrl);
         setIsLoading(false);
       } catch (error: any) {
         console.error("[PDFViewer] Erro completo:", {
           message: error.message,
           stack: error.stack,
-          url: document.pdfUrl
+          url: pdfUrl
         });
         
         // Mensagem de erro mais específica
@@ -207,15 +227,18 @@ export function PDFViewer({ document }: PDFViewerProps) {
     };
 
     fetchPdfAsBlob();
-  }, [document]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pdfUrl, documentId]);
 
+  // Cleanup blob URL on unmount or when URL changes
   useEffect(() => {
     return () => {
-      if (pdfSource?.startsWith("blob:")) {
-        URL.revokeObjectURL(pdfSource);
+      if (pdfSourceRef.current?.startsWith("blob:")) {
+        URL.revokeObjectURL(pdfSourceRef.current);
+        pdfSourceRef.current = null;
       }
     };
-  }, [pdfSource]);
+  }, [pdfUrl]);
 
   // Calcular escala automática baseado na largura do container
   useEffect(() => {

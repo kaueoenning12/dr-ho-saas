@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Loader2, Shield, FileText, Home, MessageSquare, MessageCircle, Megaphone, Lightbulb, CreditCard, Settings, Download } from "lucide-react";
+import { ArrowLeft, Loader2, Shield, FileText, Home, MessageSquare, MessageCircle, Megaphone, Lightbulb, CreditCard, Settings, Download, Heart, Eye } from "lucide-react";
 import { SidebarProvider, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { MobileSidebar } from "@/components/layout/MobileSidebar";
@@ -10,13 +10,14 @@ import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { mockDocumentContents } from "@/lib/mockData";
-import { useDocumentById, useDocuments } from "@/hooks/useDocumentsQuery";
+import { useDocumentById, useDocuments, useTrackDocumentView, useDocumentLikes, useUserDocumentLike, useToggleDocumentLike } from "@/hooks/useDocumentsQuery";
 import { CardNavigation } from "@/components/CardNavigation";
 import { useDocumentUnlock } from "@/hooks/usePremiumDocuments";
 import { PremiumDocumentUnlock } from "@/components/PremiumDocumentUnlock";
 import { useSignedPdfUrl } from "@/hooks/useSignedPdfUrl";
 import { PDFViewer } from "@/components/PDFViewer";
 import { DocxViewer } from "@/components/DocxViewer";
+import { DocumentComments } from "@/components/DocumentComments";
 
 function DocumentViewContent() {
   const { setOpen } = useSidebar();
@@ -27,6 +28,7 @@ function DocumentViewContent() {
   }, [setOpen]);
 
   const [showProtectionWarning, setShowProtectionWarning] = useState(false);
+  const [showComments, setShowComments] = useState(false);
   const { user } = useAuth();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -35,6 +37,37 @@ function DocumentViewContent() {
     data: document,
     isLoading: isDocumentLoading,
   } = useDocumentById(id ?? null);
+
+  // Track document view
+  const trackViewMutation = useTrackDocumentView();
+  const [hasTrackedView, setHasTrackedView] = useState(false);
+
+  // Track view when document is loaded (only once per session)
+  useEffect(() => {
+    if (document && !hasTrackedView && user) {
+      trackViewMutation.mutate(document.id, {
+        onSuccess: () => {
+          setHasTrackedView(true);
+        },
+        onError: (error) => {
+          console.error("Error tracking view:", error);
+        },
+      });
+    }
+  }, [document, user, hasTrackedView, trackViewMutation]);
+
+  // Document likes
+  const { data: totalLikes = 0, isLoading: isLoadingLikes } = useDocumentLikes(id ?? "");
+  const { data: userLike, isLoading: isLoadingUserLike } = useUserDocumentLike(id ?? "", user?.id);
+  const toggleLikeMutation = useToggleDocumentLike();
+  const [liked, setLiked] = useState(false);
+
+  // Sync liked state with database
+  useEffect(() => {
+    if (!isLoadingUserLike) {
+      setLiked(!!userLike);
+    }
+  }, [userLike, isLoadingUserLike]);
 
   // Check if document is unlocked (for premium documents)
   const { data: unlockData, isLoading: isUnlockLoading } = useDocumentUnlock(id ?? null);
@@ -72,6 +105,33 @@ function DocumentViewContent() {
   const fileType = document?.pdf_url ? getFileType(document.pdf_url) : 'other';
   const isDocumentPdf = fileType === 'pdf';
   const isDocumentDocx = fileType === 'docx';
+
+  // Memoize document object for PDFViewer to prevent re-renders
+  const pdfViewerDocument = useMemo(() => {
+    if (!document || !signedUrl) return null;
+    return {
+      id: document.id,
+      title: document.title,
+      pdfUrl: signedUrl,
+      category: document.category,
+      keywords: [],
+      description: "",
+      publishedAt: "",
+      views: 0,
+      likes: 0,
+      comments: 0,
+    };
+  }, [document?.id, document?.title, signedUrl, document?.category]);
+
+  const docxViewerDocument = useMemo(() => {
+    if (!document || !signedUrl) return null;
+    return {
+      id: document.id,
+      title: document.title,
+      pdfUrl: signedUrl,
+      category: document.category,
+    };
+  }, [document?.id, document?.title, signedUrl, document?.category]);
 
   useEffect(() => {
     if (!document) return;
@@ -178,6 +238,32 @@ function DocumentViewContent() {
 
   const hasSimulatedContent = document ? mockDocumentContents[document.id] : undefined;
 
+  const handleLike = async () => {
+    if (!user) {
+      toast.error("Você precisa estar logado para curtir documentos");
+      return;
+    }
+
+    if (!id) return;
+
+    // Optimistic update
+    const wasLiked = liked;
+    setLiked(!wasLiked);
+
+    try {
+      const newLikedState = await toggleLikeMutation.mutateAsync({
+        documentId: id,
+        userId: user.id,
+      });
+      setLiked(newLikedState);
+    } catch (error: any) {
+      // Revert on error
+      setLiked(wasLiked);
+      toast.error("Erro ao curtir documento. Tente novamente.");
+      console.error("Erro ao dar like:", error);
+    }
+  };
+
   // Prepare navigation cards for CardNavigation
   const navCards = [
     {
@@ -246,22 +332,52 @@ function DocumentViewContent() {
               {isDocumentLoading ? (
                 <div className="h-10 bg-muted/60 rounded-lg animate-pulse" />
               ) : document ? (
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                  <div>
-                    <h1 className="text-lg sm:text-xl md:text-2xl font-semibold text-foreground">
-                      {document.title}
-                    </h1>
-                    <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-                      Categoria: {document.category}
-                    </p>
+                <div className="flex flex-col gap-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div>
+                      <h1 className="text-lg sm:text-xl md:text-2xl font-semibold text-foreground">
+                        {document.title}
+                      </h1>
+                      <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
+                        Categoria: {document.category}
+                      </p>
+                    </div>
+                    <Badge
+                      variant="outline"
+                      className="w-fit items-center gap-1.5 px-2.5 py-1 bg-cyan/10 border-cyan/20 text-cyan"
+                    >
+                      <Shield className="h-3.5 w-3.5" />
+                      {isPremium ? "Conteúdo Premium" : "Conteúdo Protegido"}
+                    </Badge>
                   </div>
-                   <Badge
-                    variant="outline"
-                    className="w-fit items-center gap-1.5 px-2.5 py-1 bg-cyan/10 border-cyan/20 text-cyan"
-                  >
-                    <Shield className="h-3.5 w-3.5" />
-                    {isPremium ? "Conteúdo Premium" : "Conteúdo Protegido"}
-                  </Badge>
+                  {/* Stats and actions */}
+                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-1.5">
+                      <Eye className="h-4 w-4" />
+                      <span>{document.views || 0} visualizações</span>
+                    </div>
+                    <button
+                      onClick={handleLike}
+                      disabled={toggleLikeMutation.isPending || !user || isLoadingLikes || isLoadingUserLike}
+                      className="flex items-center gap-1.5 hover:text-aqua transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Heart
+                        className={`h-4 w-4 transition-all ${
+                          liked
+                            ? "fill-aqua text-aqua scale-110"
+                            : "hover:scale-110"
+                        }`}
+                      />
+                      <span>{totalLikes || 0} curtidas</span>
+                    </button>
+                    <button
+                      onClick={() => setShowComments(!showComments)}
+                      className="flex items-center gap-1.5 hover:text-cyan transition-colors"
+                    >
+                      <MessageCircle className="h-4 w-4" />
+                      <span>{document.comments || 0} comentários</span>
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <div className="flex items-center justify-between">
@@ -410,27 +526,11 @@ function DocumentViewContent() {
                   ) : signedUrl ? (
                     isDocumentPdf ? (
                       <PDFViewer 
-                        document={{
-                          id: document.id,
-                          title: document.title,
-                          pdfUrl: signedUrl,
-                          category: document.category,
-                          keywords: [],
-                          description: "",
-                          publishedAt: "",
-                          views: 0,
-                          likes: 0,
-                          comments: 0,
-                        }}
+                        document={pdfViewerDocument}
                       />
                     ) : isDocumentDocx ? (
                       <DocxViewer 
-                        document={{
-                          id: document.id,
-                          title: document.title,
-                          pdfUrl: signedUrl,
-                          category: document.category,
-                        }}
+                        document={docxViewerDocument}
                       />
                     ) : (
                       <div className="absolute inset-0 flex items-center justify-center">
@@ -488,6 +588,11 @@ function DocumentViewContent() {
               </div>
             )}
           </div>
+
+          {/* Comments section - only show when button is clicked */}
+          {document && !shouldShowUnlockScreen && showComments && (
+            <DocumentComments documentId={document.id} />
+          )}
       </main>
     </div>
   );

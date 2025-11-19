@@ -208,7 +208,18 @@ export function useDocumentById(id: string | null) {
         .eq("id", id)
         .single();
       if (error) throw error;
-      return data;
+      
+      // Fetch statistics for this document
+      const stats = await fetchDocumentsStats([id]);
+      const docStats = stats[id] || { views: 0, likes: 0, comments: 0 };
+      
+      // Add statistics to document
+      return {
+        ...data,
+        views: docStats.views,
+        likes: docStats.likes,
+        comments: docStats.comments,
+      };
     },
     enabled: !!id,
   });
@@ -360,9 +371,10 @@ export function useToggleDocumentLike() {
         return true;
       }
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["document-likes"] });
       queryClient.invalidateQueries({ queryKey: ["user-document-like"] });
+      queryClient.invalidateQueries({ queryKey: ["document", variables.documentId] });
       queryClient.invalidateQueries({ queryKey: ["documents"] });
       queryClient.invalidateQueries({ queryKey: ["root-contents"] });
       queryClient.invalidateQueries({ queryKey: ["folder-contents"] });
@@ -375,13 +387,30 @@ export function useDocumentComments(documentId: string) {
   return useQuery({
     queryKey: ["document-comments", documentId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      // 1. Buscar comentários
+      const { data: comments, error } = await supabase
         .from("document_comments")
         .select("*")
         .eq("document_id", documentId)
         .order("created_at", { ascending: false });
+      
       if (error) throw error;
-      return data || [];
+      if (!comments || comments.length === 0) return [];
+
+      // 2. Buscar profiles dos usuários
+      const userIds = [...new Set(comments.map((c: any) => c.user_id).filter(Boolean))];
+      if (userIds.length === 0) return comments;
+
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("user_id, name, avatar_url")
+        .in("user_id", userIds);
+
+      // 3. Combinar dados
+      return comments.map((comment: any) => ({
+        ...comment,
+        profiles: profiles?.find((p: any) => p.user_id === comment.user_id) || null,
+      }));
     },
     enabled: !!documentId,
   });
@@ -413,8 +442,10 @@ export function useCreateComment() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["document-comments"] });
+      queryClient.invalidateQueries({ queryKey: ["document", variables.documentId] });
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
       toast.success("Comentário adicionado!");
     },
     onError: (error: any) => {

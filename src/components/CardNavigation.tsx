@@ -161,7 +161,7 @@ export function CardNavigation({
           className={cn(
             "left-0 right-0 top-[60px] p-2 flex flex-col sm:flex-row items-stretch sm:items-start gap-2 sm:gap-3 transition-[opacity,visibility,max-height] duration-300 ease-out overflow-y-auto",
             isOpen
-              ? "visible opacity-100 pointer-events-auto relative max-h-[400px] sm:max-h-[300px]"
+              ? "visible opacity-100 pointer-events-auto relative max-h-[60vh] sm:max-h-[400px]"
               : "invisible opacity-0 pointer-events-none absolute max-h-0 overflow-hidden"
           )}
         >

@@ -95,23 +95,23 @@ export function CardNavigation({
     <div
       ref={navRef}
       className={cn(
-        "fixed top-8 left-1/2 -translate-x-1/2 w-[90%] max-w-[800px] z-[99] box-border transition-all duration-300",
+        "fixed top-6 left-1/2 -translate-x-1/2 w-[90%] max-w-[800px] z-[100] box-border transition-all duration-300",
         isVisible ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-4 pointer-events-none"
       )}
     >
       <div
         className={cn(
-          "block h-[60px] p-0 bg-card border border-border/10 rounded-xl shadow-md relative overflow-hidden transition-all duration-300 will-change-[height]",
+          "block h-[60px] p-0 bg-background/95 backdrop-blur-md border border-border rounded-xl shadow-lg relative transition-[height,opacity] duration-300 ease-out",
           isOpen && "h-auto min-h-[60px]"
         )}
       >
         {/* Top bar */}
-        <div className="absolute top-0 left-0 right-0 h-[60px] flex items-center justify-between px-3 sm:px-[1.1rem] py-2 z-[2]">
+        <div className="absolute top-0 left-0 right-0 h-[60px] flex items-center justify-between px-3 sm:px-[1.1rem] py-2 z-10">
           {/* Hamburger menu */}
           <button
             onClick={() => setIsOpen(!isOpen)}
             className={cn(
-              "h-full flex flex-col items-center justify-center cursor-pointer gap-1.5 hover:opacity-75 transition-opacity order-2 sm:order-1",
+              "h-full flex flex-col items-center justify-center cursor-pointer gap-1.5 p-2 rounded-lg hover:bg-muted/50 transition-all duration-200 order-2 sm:order-1",
               isOpen && "open"
             )}
             aria-label="Toggle navigation menu"
@@ -137,7 +137,7 @@ export function CardNavigation({
           </button>
 
           {/* Logo */}
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center pointer-events-none order-1 sm:order-none">
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center drop-shadow-sm order-1 sm:order-none">
             <img
               src={logoSrc}
               alt="Dr. HO Logo"
@@ -159,7 +159,7 @@ export function CardNavigation({
         {/* Navigation content */}
         <div
           className={cn(
-            "absolute left-0 right-0 top-[60px] bottom-0 p-2 flex flex-col sm:flex-row items-stretch sm:items-end gap-2 sm:gap-3 transition-all duration-300",
+            "absolute left-0 right-0 top-[60px] bottom-0 p-2 flex flex-col sm:flex-row items-stretch sm:items-end gap-2 sm:gap-3 transition-[opacity,visibility] duration-200 ease-out",
             isOpen
               ? "visible opacity-100 pointer-events-auto"
               : "invisible opacity-0 pointer-events-none"
@@ -169,7 +169,7 @@ export function CardNavigation({
             <div
               key={index}
               data-card-container
-              className="h-auto sm:h-full flex-1 min-w-0 min-h-[60px] sm:min-h-0 rounded-[calc(0.75rem-0.2rem)] relative flex flex-col p-3 sm:p-4 gap-2 select-none bg-muted/50 hover:bg-muted transition-colors overflow-hidden"
+              className="h-auto sm:h-full flex-1 min-w-0 min-h-[60px] sm:min-h-0 rounded-[calc(0.75rem-0.2rem)] relative flex flex-col p-3 sm:p-4 gap-2 select-none bg-card/95 backdrop-blur-sm border border-border/20 hover:bg-card transition-colors duration-200 overflow-hidden"
               style={{ minHeight: 'fit-content' }}
             >
               <h3 className="font-normal text-lg sm:text-xl md:text-[22px] leading-tight tracking-[-0.5px] text-foreground">

@@ -548,13 +548,13 @@ function DocumentViewContent() {
                               <Button
                                 onClick={() => {
                                   if (signedUrl) {
-                                    const link = document.createElement('a');
+                                    const link = window.document.createElement('a');
                                     link.href = signedUrl;
-                                    link.download = document.title;
+                                    link.download = document?.title || 'document';
                                     link.target = '_blank';
-                                    document.body.appendChild(link);
+                                    window.document.body.appendChild(link);
                                     link.click();
-                                    document.body.removeChild(link);
+                                    window.document.body.removeChild(link);
                                   }
                                 }}
                                 className="bg-cyan hover:bg-cyan/90 text-white"

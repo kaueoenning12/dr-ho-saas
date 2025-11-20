@@ -91,7 +91,7 @@ export function DocumentComments({ documentId }: DocumentCommentsProps) {
           <form onSubmit={handleSubmit} className="mb-8">
             <div className="flex gap-3">
               <Avatar className="h-10 w-10 shrink-0">
-                <AvatarImage src={user.avatar_url} alt={user.name} />
+                <AvatarImage src={user.avatarUrl || undefined} alt={user.name} />
                 <AvatarFallback className="bg-cyan/20 text-cyan">
                   {getInitials(user.name)}
                 </AvatarFallback>

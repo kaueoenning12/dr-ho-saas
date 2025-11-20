@@ -240,16 +240,12 @@ serve(async (req) => {
         });
         // Continue to create checkout - don't block, skip all other validations
       } else {
-        // Verificação adicional de segurança: se não temos certeza, verificar novamente antes de bloquear
-        // Se o plan_id da assinatura não foi verificado corretamente, tentar uma última vez
-        if (subscriptionPlanId && !isFreePlan) {
-          console.log('[Checkout Session] ⚠️ Verificação adicional: plan_id da assinatura não é Free, mas verificando novamente...', {
-            subscriptionPlanId,
-            freePlanId: FREE_PLAN_ID,
-            match: subscriptionPlanId === FREE_PLAN_ID,
-          });
-        }
-        // User has a paid plan - check if checkout should be allowed
+        // User has a paid plan - allow checkout in these cases:
+        // 1. Different plan (upgrade/downgrade)
+        // 2. Same plan but expiring soon (early renewal)
+        // 3. Same plan and cancelled (reactivation)
+        // 4. Same plan and user explicitly wants to renew (always allow for flexibility)
+        
         const isDifferentPlan = existingPlanId && existingPlanId !== planId;
         
         // Check if subscription is expiring soon (within 30 days)
@@ -272,57 +268,39 @@ serve(async (req) => {
           existingSubscription.status === 'canceled'
         );
 
-        // Allow checkout if:
-        // - User wants a different plan (upgrade/downgrade)
-        // - Subscription is expiring soon (early renewal)
-        // - Subscription was cancelled (reactivation)
+        // SEMPRE PERMITIR CHECKOUT - o Stripe gerenciará a renovação/upgrade
+        // A UI já tem as verificações necessárias, então se o usuário chegou aqui, deixar prosseguir
         if (isDifferentPlan) {
-          console.log('[Checkout Session] Permitindo mudança de plano:', {
+          console.log('[Checkout Session] ✅ Permitindo mudança de plano:', {
             currentPlan: existingPlan?.name,
             currentPlanId: existingPlanId,
             newPlanId: planId,
           });
         } else if (isExpiringSoon) {
-          console.log('[Checkout Session] Permitindo renovação antecipada:', {
+          console.log('[Checkout Session] ✅ Permitindo renovação antecipada:', {
             planName: existingPlan?.name,
             expiresAt: existingSubscription?.expires_at,
           });
         } else if (isCancelled) {
-          console.log('[Checkout Session] Permitindo reativação de assinatura cancelada:', {
+          console.log('[Checkout Session] ✅ Permitindo reativação de assinatura cancelada:', {
             planName: existingPlan?.name,
           });
         } else {
-          // Verificação final de segurança: garantir que não é Free plan antes de bloquear
-          // Se o plan_id da assinatura for Free, permitir mesmo que outras verificações falharam
-          if (subscriptionPlanId && (subscriptionPlanId === FREE_PLAN_ID || String(subscriptionPlanId) === String(FREE_PLAN_ID))) {
-            console.log('[Checkout Session] ⚠️ Verificação de segurança: plan_id é Free, permitindo checkout mesmo após outras verificações:', {
-              subscriptionPlanId,
-              freePlanId: FREE_PLAN_ID,
-            });
-            // Continue to create checkout - don't block
-          } else {
-            // Block only if user has the same active paid plan and it's not expiring soon
-            console.log('[Checkout Session] ❌ Bloqueando checkout - usuário já tem a mesma assinatura paga ativa:', {
-              planName: existingPlan?.name,
-              planPrice: existingPlan?.price,
-              subscriptionPlanId,
-              existingPlanId,
-              expiresAt: existingSubscription?.expires_at,
-            });
-            return new Response(
-              JSON.stringify({ 
-                error: 'Você já possui uma assinatura ativa para este plano. Acesse a página de cobrança para gerenciar sua assinatura.',
-                code: 'ALREADY_SUBSCRIBED'
-              }),
-              { 
-                status: 400, 
-                headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-              }
-            )
-          }
+          // MUDANÇA: Permitir renovação mesmo para o mesmo plano ativo
+          // O Stripe gerenciará se é upgrade, downgrade ou renovação
+          console.log('[Checkout Session] ✅ Permitindo renovação/checkout para o mesmo plano:', {
+            planName: existingPlan?.name,
+            planPrice: existingPlan?.price,
+            subscriptionPlanId,
+            existingPlanId,
+            expiresAt: existingSubscription?.expires_at,
+            note: 'Usuário solicitou checkout explicitamente - Stripe gerenciará a cobrança',
+          });
+          // Continuar para criar checkout - não bloquear mais
         }
       }
     }
+
 
     // Create or get Stripe customer
     let customerId = existingSubscription?.stripe_customer_id

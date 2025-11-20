@@ -30,15 +30,14 @@ export default function Plans() {
   
   // Verificar se o usuário tem plano Free
   const FREE_PLAN_ID = 'b2d1cb5e-e3dd-44c8-a96e-2d35d496a5f5';
-  const currentPlanId = (user?.subscription as any)?.subscription_plans?.id || (user?.subscription as any)?.plan_id;
-  const subscriptionPlanId = (user?.subscription as any)?.plan_id ? String((user?.subscription as any).plan_id) : null;
+  const subscriptionPlanId = user?.subscription?.plan_id ? String(user.subscription.plan_id) : null;
+  
+  // Verificar se é Free plan apenas pelo ID (mais confiável)
   const isFreePlan = subscriptionPlanId === FREE_PLAN_ID || 
-                     (currentPlanId && String(currentPlanId) === FREE_PLAN_ID) ||
-                     (user?.subscription?.subscription_plans?.name?.toLowerCase()?.includes('free')) ||
-                     (user?.subscription?.subscription_plans?.price === 0);
+                     (subscriptionPlanId && String(subscriptionPlanId).toLowerCase() === String(FREE_PLAN_ID).toLowerCase());
   
   // Verificar se o usuário já tem o mesmo plano ativo
-  const isSamePlan = currentPlanId && primaryPlan?.id && currentPlanId === primaryPlan.id;
+  const isSamePlan = subscriptionPlanId && primaryPlan?.id && subscriptionPlanId === primaryPlan.id;
   const isExpiringSoon = daysRemaining > 0 && daysRemaining <= 30;
   
   // Permitir checkout se:

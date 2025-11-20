@@ -381,7 +381,7 @@ serve(async (req) => {
       });
       session = await stripe.checkout.sessions.create({
         customer: customerId,
-        payment_method_types: ['card', 'boleto', 'pix', 'link'],
+        payment_method_types: ['card', 'link'],
         line_items: lineItems,
         mode: 'subscription',
         success_url: successUrl || `${siteUrl}/plans/success?session_id={CHECKOUT_SESSION_ID}`,

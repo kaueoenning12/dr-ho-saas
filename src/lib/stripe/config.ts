@@ -9,7 +9,7 @@ export const STRIPE_CONFIG = {
 
 export const STRIPE_CHECKOUT_CONFIG = {
   mode: 'subscription' as const,
-  paymentMethodTypes: ['card', 'boleto', 'pix', 'link'] as const,
+  paymentMethodTypes: ['card', 'link'] as const,
   successUrl: `${window.location.origin}/plans/success?session_id={CHECKOUT_SESSION_ID}`,
   cancelUrl: `${window.location.origin}/plans/cancel`,
   billingAddressCollection: 'required' as const,

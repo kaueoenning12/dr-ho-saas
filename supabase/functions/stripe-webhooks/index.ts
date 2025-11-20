@@ -41,7 +41,6 @@ serve(async (req) => {
 
     // Get the raw body
     const body = await req.text()
-    const webhookSecret = Deno.env.get('STRIPE_WEBHOOK_SECRET')
     
     if (!webhookSecret) {
       return new Response('Missing webhook secret', { status: 500 })

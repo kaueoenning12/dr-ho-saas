@@ -102,6 +102,52 @@ serve(async (req) => {
       )
     }
 
+    // Validação: Bloquear checkout de planos gratuitos
+    if (plan.price <= 0) {
+      console.error('[Checkout Session] ❌ Tentativa de checkout para plano gratuito:', {
+        planId: plan.id,
+        planName: plan.name,
+        price: plan.price
+      });
+      return new Response(
+        JSON.stringify({ 
+          error: 'Planos gratuitos não podem ser processados pelo Stripe',
+          details: 'Não é possível criar checkout para planos com valor R$ 0,00. Planos gratuitos são atribuídos automaticamente.'
+        }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
+
+    // Validação: Verificar se o plano tem IDs do Stripe configurados
+    if (!plan.stripe_product_id || !plan.stripe_price_id) {
+      console.error('[Checkout Session] ❌ Plano sem IDs do Stripe configurados:', {
+        planId: plan.id,
+        planName: plan.name,
+        hasProductId: !!plan.stripe_product_id,
+        hasPriceId: !!plan.stripe_price_id
+      });
+      return new Response(
+        JSON.stringify({ 
+          error: 'Plano não configurado no Stripe',
+          details: 'Este plano não possui Product ID ou Price ID do Stripe configurado. Entre em contato com o suporte.'
+        }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
+
+    console.log('[Checkout Session] ✅ Plano validado:', {
+      planId: plan.id,
+      planName: plan.name,
+      price: plan.price,
+      hasStripeIds: true
+    });
+
     // Get user profile
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
@@ -325,51 +371,19 @@ serve(async (req) => {
       console.log('[Checkout Session] Usando customer existente:', customerId);
     }
 
-    // Prepare line items based on whether we have Stripe product/price IDs
-    let lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = []
+    // Usar Price ID do Stripe (já validado acima)
+    const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [
+      {
+        price: plan.stripe_price_id, // Usar o Price ID do banco de dados
+        quantity: 1,
+      },
+    ];
 
-    if (plan.stripe_product_id && plan.stripe_price_id) {
-      // Use existing Stripe Price ID if available
-      lineItems = [
-        {
-          price: plan.stripe_price_id,
-          quantity: 1,
-        },
-      ]
-    } else if (plan.stripe_product_id) {
-      // Use Stripe Product ID but create price dynamically
-      lineItems = [
-        {
-          price_data: {
-            currency: 'brl',
-            product: plan.stripe_product_id,
-            unit_amount: Math.round(plan.price * 100), // Convert to cents
-            recurring: {
-              interval: 'year',
-            },
-          },
-          quantity: 1,
-        },
-      ]
-    } else {
-      // Create product and price dynamically (fallback)
-      lineItems = [
-        {
-          price_data: {
-            currency: 'brl',
-            product_data: {
-              name: plan.name,
-              description: plan.description || '',
-            },
-            unit_amount: Math.round(plan.price * 100), // Convert to cents
-            recurring: {
-              interval: 'year',
-            },
-          },
-          quantity: 1,
-        },
-      ]
-    }
+    console.log('[Checkout Session] Line items preparados:', {
+      priceId: plan.stripe_price_id,
+      planName: plan.name,
+      amount: plan.price
+    });
 
     // Create Stripe checkout session
     let session;

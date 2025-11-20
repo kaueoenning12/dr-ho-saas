@@ -22,7 +22,11 @@ export default function Plans() {
   
   const { data: plans = [], isLoading: plansLoading } = useSubscriptionPlans();
 
-  const primaryPlan = plans[0]; // Get first plan or could filter by specific criteria
+  // Separar planos gratuitos de pagos
+  const freePlan = plans.find(p => p.price === 0);
+  const paidPlans = plans.filter(p => p.price > 0);
+  const primaryPlan = paidPlans[0]; // Usar o primeiro plano pago (DR HO - PREMIUM)
+  
   // Verificar se tem assinatura paga válida (não Free)
   // Plano Free = sem assinatura válida
   const hasActivePlan = hasValidPaidSubscription(user?.subscription);
@@ -101,6 +105,13 @@ export default function Plans() {
 
   const handleSubscribe = async () => {
     if (!user || !primaryPlan) return;
+
+    // Validação: Bloquear checkout de planos gratuitos
+    if (!primaryPlan || primaryPlan.price <= 0) {
+      toast.error("Não é possível processar pagamento para plano gratuito");
+      console.error('[Plans] Tentativa de checkout para plano gratuito:', primaryPlan);
+      return;
+    }
 
     // Verificar se pode assinar
     if (!canSubscribe) {
@@ -304,9 +315,11 @@ export default function Plans() {
 
               <Card className="border-cyan/50 shadow-cyan/10 shadow-xl relative hover:shadow-cyan/20 hover:scale-[1.02] transition-all duration-500 animate-fade-in-up">
                 <div className="absolute -top-3 left-1/2 -translate-x-1/2 animate-pulse">
-                  <Badge className="bg-gradient-to-r from-cyan to-blue-500 text-white border-0 px-4 py-1 shadow-lg">
-                    Mais de R$ 1,00 por dia!
-                  </Badge>
+                  {primaryPlan && (
+                    <Badge className="bg-gradient-to-r from-cyan to-blue-500 text-white border-0 px-4 py-1 shadow-lg">
+                      Menos de R$ {(primaryPlan.price / 365).toFixed(2)} por dia!
+                    </Badge>
+                  )}
                 </div>
 
                 <CardHeader className="text-center pt-8">
@@ -315,7 +328,7 @@ export default function Plans() {
                       R$ {primaryPlan?.price.toFixed(2) || "0.00"}
                     </div>
                     <div className="text-muted-foreground">
-                      por ano ou <span className="font-semibold">12x R$ {primaryPlan ? (primaryPlan.price / 12).toFixed(2) : "0.00"}</span>
+                      por ano ou <span className="font-semibold text-cyan">12x R$ {primaryPlan ? (primaryPlan.price / 12).toFixed(2) : "0.00"}</span>
                     </div>
                   </div>
 

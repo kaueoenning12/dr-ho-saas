@@ -1,11 +1,11 @@
 import { useEffect, useState, useRef } from "react";
-import { Shield, Loader2 } from "lucide-react";
+import { Shield, Loader2, ZoomIn, ZoomOut, RotateCcw } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import mammoth from "mammoth";
 
-interface DocxViewerProps {
+interface ImageViewerProps {
   document: {
     id: string;
     title: string;
@@ -14,20 +14,20 @@ interface DocxViewerProps {
   } | null;
 }
 
-export function DocxViewer({ document }: DocxViewerProps) {
+export function ImageViewer({ document }: ImageViewerProps) {
   const [showProtectionWarning, setShowProtectionWarning] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [isFetchingDocx, setIsFetchingDocx] = useState(false);
-  const [htmlContent, setHtmlContent] = useState<string | null>(null);
+  const [scale, setScale] = useState(1);
+  const [imageError, setImageError] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const imageRef = useRef<HTMLImageElement>(null);
   const { user } = useAuth();
 
   useEffect(() => {
     if (!document) return;
 
     setIsLoading(true);
-    setIsFetchingDocx(false);
-    setHtmlContent(null);
+    setImageError(false);
 
     const handleCopy = (e: ClipboardEvent) => {
       e.preventDefault();
@@ -126,47 +126,86 @@ export function DocxViewer({ document }: DocxViewerProps) {
     };
   }, [document]);
 
+  // Calculate auto scale on window resize (only if image is loaded)
   useEffect(() => {
-    if (!document) return;
-
-    const fetchAndConvertDocx = async () => {
-      try {
-        setIsFetchingDocx(true);
-        console.log("[DocxViewer] Iniciando fetch do DOCX:", document.pdfUrl);
-
-        // Fetch do arquivo DOCX
-        const response = await fetch(document.pdfUrl);
+    const calculateAutoScale = () => {
+      if (containerRef.current && imageRef.current && imageRef.current.complete) {
+        const containerWidth = containerRef.current.clientWidth;
+        const containerHeight = containerRef.current.clientHeight;
+        const imageWidth = imageRef.current.naturalWidth;
+        const imageHeight = imageRef.current.naturalHeight;
         
-        console.log("[DocxViewer] Response status:", response.status);
-
-        if (!response.ok) {
-          throw new Error(`Erro ao buscar DOCX: ${response.status} ${response.statusText}`);
+        if (imageWidth > 0 && imageHeight > 0) {
+          const horizontalMargin = 64;
+          const verticalMargin = 64;
+          const scaleX = (containerWidth - horizontalMargin) / imageWidth;
+          const scaleY = (containerHeight - verticalMargin) / imageHeight;
+          const calculatedScale = Math.min(scaleX, scaleY, 1); // Don't scale up beyond 100%
+          const boundedScale = Math.max(0.3, Math.min(1.0, calculatedScale));
+          setScale(boundedScale);
         }
-
-        const arrayBuffer = await response.arrayBuffer();
-        console.log("[DocxViewer] DOCX arrayBuffer criado, tamanho:", arrayBuffer.byteLength, "bytes");
-        
-        // Converter DOCX para HTML usando mammoth
-        const result = await mammoth.convertToHtml({ arrayBuffer });
-        console.log("[DocxViewer] DOCX convertido para HTML com sucesso");
-        
-        setHtmlContent(result.value);
-        setIsLoading(false);
-      } catch (error: any) {
-        console.error("[DocxViewer] Erro completo:", {
-          message: error.message,
-          stack: error.stack,
-          url: document.pdfUrl
-        });
-        toast.error("Erro ao carregar o documento. Tente novamente.");
-        setIsLoading(false);
-      } finally {
-        setIsFetchingDocx(false);
       }
     };
 
-    fetchAndConvertDocx();
-  }, [document]);
+    window.addEventListener('resize', calculateAutoScale);
+    return () => {
+      window.removeEventListener('resize', calculateAutoScale);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [document?.pdfUrl]);
+
+  const handleZoomIn = () => {
+    setScale((prev) => Math.min(prev + 0.2, 3));
+  };
+
+  const handleZoomOut = () => {
+    setScale((prev) => Math.max(prev - 0.2, 0.3));
+  };
+
+  const handleZoomReset = () => {
+    if (containerRef.current && imageRef.current && imageRef.current.complete) {
+      const containerWidth = containerRef.current.clientWidth;
+      const containerHeight = containerRef.current.clientHeight;
+      const imageWidth = imageRef.current.naturalWidth;
+      const imageHeight = imageRef.current.naturalHeight;
+      
+      if (imageWidth > 0 && imageHeight > 0) {
+        const horizontalMargin = 64;
+        const verticalMargin = 64;
+        const scaleX = (containerWidth - horizontalMargin) / imageWidth;
+        const scaleY = (containerHeight - verticalMargin) / imageHeight;
+        const calculatedScale = Math.min(scaleX, scaleY, 1); // Don't scale up beyond 100%
+        const boundedScale = Math.max(0.3, Math.min(1.0, calculatedScale));
+        setScale(boundedScale);
+      }
+    }
+  };
+
+  const handleImageLoad = () => {
+    setIsLoading(false);
+    if (containerRef.current && imageRef.current) {
+      const containerWidth = containerRef.current.clientWidth;
+      const containerHeight = containerRef.current.clientHeight;
+      const imageWidth = imageRef.current.naturalWidth;
+      const imageHeight = imageRef.current.naturalHeight;
+      
+      if (imageWidth > 0 && imageHeight > 0) {
+        const horizontalMargin = 64;
+        const verticalMargin = 64;
+        const scaleX = (containerWidth - horizontalMargin) / imageWidth;
+        const scaleY = (containerHeight - verticalMargin) / imageHeight;
+        const calculatedScale = Math.min(scaleX, scaleY, 1); // Don't scale up beyond 100%
+        const boundedScale = Math.max(0.3, Math.min(1.0, calculatedScale));
+        setScale(boundedScale);
+      }
+    }
+  };
+
+  const handleImageError = () => {
+    setIsLoading(false);
+    setImageError(true);
+    toast.error("Erro ao carregar a imagem.");
+  };
 
   if (!document) return null;
 
@@ -191,6 +230,38 @@ export function DocxViewer({ document }: DocxViewerProps) {
         </div>
       </div>
 
+      <div className="border-b border-cyan/10 px-4 py-2 flex items-center gap-2 bg-background/70">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleZoomOut}
+          disabled={scale <= 0.3}
+          className="h-8 px-2"
+        >
+          <ZoomOut className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleZoomReset}
+          className="h-8 px-2"
+        >
+          <RotateCcw className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleZoomIn}
+          disabled={scale >= 3}
+          className="h-8 px-2"
+        >
+          <ZoomIn className="h-4 w-4" />
+        </Button>
+        <span className="ml-3 text-xs font-medium text-muted-foreground">
+          Zoom: {(scale * 100).toFixed(0)}%
+        </span>
+      </div>
+
       <div ref={containerRef} className="flex-1 overflow-auto bg-gray-50 relative">
         {showProtectionWarning && (
           <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/20 backdrop-blur-sm pointer-events-none animate-in fade-in duration-200">
@@ -201,30 +272,33 @@ export function DocxViewer({ document }: DocxViewerProps) {
           </div>
         )}
 
-        {(isLoading || isFetchingDocx) && (
+        {isLoading && (
           <div className="absolute inset-0 flex items-center justify-center bg-background/80 backdrop-blur-sm z-10">
             <div className="text-center space-y-3">
               <Loader2 className="h-10 w-10 animate-spin text-cyan mx-auto" />
               <p className="text-sm font-medium text-muted-foreground">
-                {isFetchingDocx ? "Carregando documento..." : "Renderizando documento..."}
+                Carregando imagem...
               </p>
             </div>
           </div>
         )}
 
-        {htmlContent && (
-          <div 
-            className="relative w-full h-full p-4 sm:p-8"
-            style={{
-              userSelect: 'none',
-              WebkitUserSelect: 'none',
-              MozUserSelect: 'none',
-              msUserSelect: 'none',
-              WebkitTouchCallout: 'none',
-            }}
-            onDragStart={(e) => e.preventDefault()}
-            onContextMenu={(e) => e.preventDefault()}
-          >
+        {imageError ? (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="text-center space-y-4 max-w-md px-4">
+              <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-6">
+                <Shield className="h-12 w-12 text-destructive mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-foreground mb-2">
+                  Erro ao carregar imagem
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  Não foi possível carregar a imagem. Verifique se o arquivo existe e está acessível.
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="relative w-full h-full flex items-center justify-center p-4 sm:p-8">
             {/* Watermark de proteção */}
             <div className="absolute inset-0 pointer-events-none overflow-hidden select-none z-20">
               <div
@@ -242,35 +316,32 @@ export function DocxViewer({ document }: DocxViewerProps) {
               </div>
             </div>
 
-            {/* Conteúdo do documento */}
-            <div className="relative z-10 max-w-4xl mx-auto bg-white dark:bg-gray-900 rounded-xl shadow-2xl p-6 sm:p-12">
-              <div 
-                className="prose dark:prose-invert max-w-none"
-                style={{
-                  userSelect: 'none',
-                  WebkitUserSelect: 'none',
-                  MozUserSelect: 'none',
-                  msUserSelect: 'none',
-                }}
-                onCopy={(e) => e.preventDefault()}
-                onCut={(e) => e.preventDefault()}
-                onPaste={(e) => e.preventDefault()}
-                onDragStart={(e) => e.preventDefault()}
-                dangerouslySetInnerHTML={{ __html: htmlContent }}
-              />
-            </div>
+            {/* Imagem */}
+            <img
+              ref={imageRef}
+              src={document.pdfUrl}
+              alt={document.title}
+              onLoad={handleImageLoad}
+              onError={handleImageError}
+              className="max-w-full max-h-full object-contain shadow-2xl rounded-lg"
+              style={{
+                transform: `scale(${scale})`,
+                userSelect: 'none',
+                WebkitUserSelect: 'none',
+                MozUserSelect: 'none',
+                msUserSelect: 'none',
+                WebkitTouchCallout: 'none',
+                pointerEvents: 'auto',
+                transition: 'transform 0.2s ease-in-out',
+              }}
+              draggable={false}
+              onContextMenu={(e) => e.preventDefault()}
+              onDragStart={(e) => e.preventDefault()}
+            />
           </div>
         )}
       </div>
     </div>
   );
 }
-
-
-
-
-
-
-
-
 

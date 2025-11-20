@@ -142,3 +142,8 @@ COMMENT ON FUNCTION public.handle_new_user() IS 'Trigger function that automatic
 COMMENT ON COLUMN public.user_subscriptions.plan_id IS 'Reference to subscription_plans. Free plan ID is b2d1cb5e-e3dd-44c8-a96e-2d35d496a5f5';
 
 
+
+
+
+
+

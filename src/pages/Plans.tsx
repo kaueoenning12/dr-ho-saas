@@ -13,7 +13,8 @@ import { daysUntil, formatDateBR } from "@/lib/utils";
 import { toast } from "sonner";
 import { useSubscriptionPlans } from "@/hooks/useSubscriptionsQuery";
 import { redirectToCheckout } from "@/lib/stripe/client";
-import { supabase } from "@/integrations/supabase/client";
+import { invokeStripeFunction } from "@/lib/stripe/edgeFunctionHelper";
+import { hasValidPaidSubscription } from "@/lib/utils/subscription";
 
 export default function Plans() {
   const { user } = useAuth();
@@ -22,8 +23,30 @@ export default function Plans() {
   const { data: plans = [], isLoading: plansLoading } = useSubscriptionPlans();
 
   const primaryPlan = plans[0]; // Get first plan or could filter by specific criteria
-  const hasActivePlan = user?.subscription?.status === "active";
+  // Verificar se tem assinatura paga válida (não Free)
+  // Plano Free = sem assinatura válida
+  const hasActivePlan = hasValidPaidSubscription(user?.subscription);
   const daysRemaining = user?.subscription?.expires_at ? daysUntil(user.subscription.expires_at) : 0;
+  
+  // Verificar se o usuário tem plano Free
+  const FREE_PLAN_ID = 'b2d1cb5e-e3dd-44c8-a96e-2d35d496a5f5';
+  const currentPlanId = (user?.subscription as any)?.subscription_plans?.id || (user?.subscription as any)?.plan_id;
+  const subscriptionPlanId = (user?.subscription as any)?.plan_id ? String((user?.subscription as any).plan_id) : null;
+  const isFreePlan = subscriptionPlanId === FREE_PLAN_ID || 
+                     (currentPlanId && String(currentPlanId) === FREE_PLAN_ID) ||
+                     (user?.subscription?.subscription_plans?.name?.toLowerCase()?.includes('free')) ||
+                     (user?.subscription?.subscription_plans?.price === 0);
+  
+  // Verificar se o usuário já tem o mesmo plano ativo
+  const isSamePlan = currentPlanId && primaryPlan?.id && currentPlanId === primaryPlan.id;
+  const isExpiringSoon = daysRemaining > 0 && daysRemaining <= 30;
+  
+  // Permitir checkout se:
+  // - Tem plano Free (sempre permitir)
+  // - Não tem assinatura ativa
+  // - Tem assinatura mas é plano diferente (upgrade/downgrade)
+  // - Tem assinatura mas está expirando em menos de 30 dias (renovação antecipada)
+  const canSubscribe = isFreePlan || !hasActivePlan || !isSamePlan || isExpiringSoon;
 
   // Helper function para parsear features de forma segura
   const parseFeatures = (features: string | null | undefined): string[] => {
@@ -80,27 +103,36 @@ export default function Plans() {
   const handleSubscribe = async () => {
     if (!user || !primaryPlan) return;
 
-    if (hasActivePlan) {
-      toast.info("Você já possui uma assinatura ativa!");
+    // Verificar se pode assinar
+    if (!canSubscribe) {
+      if (isSamePlan && !isExpiringSoon) {
+        toast.info("Você já possui uma assinatura ativa para este plano. Acesse a página de cobrança para gerenciar sua assinatura.");
+      } else {
+        toast.info("Você já possui uma assinatura ativa!");
+      }
       return;
     }
 
     setIsLoading(true);
     
     try {
-      // Call Supabase Edge Function to create checkout session
-      const { data, error } = await supabase.functions.invoke('create-checkout-session', {
-        body: {
-          planId: primaryPlan.id,
-          userId: user.id,
-        },
-      });
-
-      if (error) {
-        throw new Error(error.message || 'Erro ao criar sessão de pagamento');
+      // Verificar se temos os dados necessários
+      if (!primaryPlan?.id) {
+        throw new Error('Plano não encontrado');
+      }
+      
+      if (!user?.id) {
+        throw new Error('Usuário não autenticado');
       }
 
-      if (data?.url) {
+      // Call Supabase Edge Function to create checkout session
+      // A função invokeStripeFunction automaticamente adiciona as chaves do Stripe do .env
+      const data = await invokeStripeFunction('create-checkout-session', {
+        planId: primaryPlan.id,
+        userId: user.id,
+      });
+
+      if (data?.url || data?.sessionId) {
         // Redirect to Stripe Checkout
         await redirectToCheckout(data.sessionId);
       } else {
@@ -108,7 +140,8 @@ export default function Plans() {
       }
     } catch (error: any) {
       console.error("Subscription error:", error);
-      toast.error(error.message || "Erro ao processar pagamento");
+      const errorMessage = error.message || error.originalError?.message || "Erro ao processar pagamento";
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -144,7 +177,7 @@ export default function Plans() {
                       <Badge variant="outline" className="bg-cyan/10 text-cyan border-cyan/30">
                         Plano Atual
                       </Badge>
-                      {user.subscription.status === "active" && (
+                      {hasValidPaidSubscription(user?.subscription) && (
                         <Badge variant="outline" className="bg-green-500/10 text-green-600 border-green-500/30">
                           Ativo
                         </Badge>
@@ -315,22 +348,31 @@ export default function Plans() {
                 <CardFooter className="flex flex-col gap-3 px-6 pb-6">
                   <Button
                     size="lg"
-                    className="w-full bg-gradient-to-r from-cyan to-blue-500 hover:from-cyan/90 hover:to-blue-500/90 text-white text-lg py-6 transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-cyan/30 active:scale-95 relative overflow-hidden group"
-                    disabled={hasActivePlan || isLoading}
+                    className="w-full bg-gradient-to-r from-cyan to-blue-500 hover:from-cyan/90 hover:to-blue-500/90 text-white text-lg py-6 transition-all duration-300 hover:scale-105 hover:shadow-lg hover:shadow-cyan/30 active:scale-95 relative overflow-hidden group disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled={!canSubscribe || isLoading}
                     onClick={handleSubscribe}
                   >
-                    {!hasActivePlan && !isLoading && (
+                    {canSubscribe && !isLoading && (
                       <div className="absolute inset-0 shimmer opacity-50" />
                     )}
                     {isLoading ? (
-                      <div className="flex items-center gap-2 relative z-10">
+                      <div className="flex items-center gap-2 relative z-10 text-white">
                         <div className="h-5 w-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                         Redirecionando para pagamento...
                       </div>
-                    ) : hasActivePlan ? (
-                      <span className="relative z-10">Você já está assinante!</span>
+                    ) : !canSubscribe ? (
+                      <span className="relative z-10 text-white">
+                        {isSamePlan && !isExpiringSoon 
+                          ? "Você já está assinante deste plano!" 
+                          : "Você já está assinante!"}
+                      </span>
+                    ) : isExpiringSoon ? (
+                      <div className="flex items-center gap-2 relative z-10 text-white">
+                        <CreditCard className="h-5 w-5" />
+                        <span className="font-semibold">RENOVAR ASSINATURA</span>
+                      </div>
                     ) : (
-                      <div className="flex items-center gap-2 relative z-10">
+                      <div className="flex items-center gap-2 relative z-10 text-white">
                         <CreditCard className="h-5 w-5" />
                         <span className="font-semibold">ASSINAR COM STRIPE</span>
                       </div>

@@ -154,7 +154,7 @@ export default function Documents() {
                   }}
                   className={`group shrink-0 whitespace-nowrap rounded-md text-[11px] sm:text-xs px-2 sm:px-2.5 py-1 sm:py-1.5 h-7 sm:h-8 transition-all duration-300 hover:scale-105 active:scale-95 ${
                     showOnlyNew
-                      ? "bg-gradient-to-r from-cyan to-blue-500 text-white hover:from-cyan/90 hover:to-blue-500/90 shadow-md hover:shadow-lg"
+                      ? "bg-gradient-to-r from-cyan to-blue-500 text-primary-foreground hover:from-cyan/90 hover:to-blue-500/90 shadow-md hover:shadow-lg"
                       : "text-foreground/70 hover:text-foreground hover:bg-muted"
                   }`}
                 >

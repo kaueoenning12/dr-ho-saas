@@ -1,0 +1,22 @@
+# Template para arquivo .env.local
+# Copie este conteúdo para um arquivo chamado .env.local na raiz do projeto
+# NUNCA commite o arquivo .env.local no git!
+
+# Supabase Configuration
+VITE_SUPABASE_URL=https://seu-project-ref.supabase.co
+VITE_SUPABASE_ANON_KEY=sua_anon_key_aqui
+
+# Stripe Configuration
+# Publishable Key - Pode ser exposta no frontend
+VITE_STRIPE_PUBLISHABLE_KEY=pk_test_51STMbT2MC0MvWzlW8pRgM9FgzMt4UgiX4l4W5HSubjQ8B3wsostyjJHFO8Vf3ACTV9fX4XQM8kiToZswlxaOET3q00CfYhrnFG
+
+# Secret Key - Será passada automaticamente para as Edge Functions via código
+# Não se preocupe, ela será enviada apenas nas requisições internas para as Edge Functions
+VITE_STRIPE_SECRET_KEY=sk_test_51STMbT2MC0MvWzlWPCbTHpaWqGVtZX55gyKrzTVI4wFQs60KPKwiBMTsCmhRLQI6ve6WbNmpZnciOK23HUI53rSU00nJLPp8X5
+
+# Product ID do Stripe
+VITE_STRIPE_PRODUCT_ID=prod_TSUjx4c42eILF8
+
+# Site URL (opcional, padrão: window.location.origin)
+VITE_SITE_URL=http://localhost:8080
+

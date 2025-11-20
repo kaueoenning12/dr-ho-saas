@@ -14,8 +14,17 @@ serve(async (req) => {
   }
 
   try {
+    // Get webhook secret from environment (webhooks são chamados pelo Stripe, não pelo frontend)
+    const stripeSecretKey = Deno.env.get('STRIPE_SECRET_KEY') || ''
+    const webhookSecret = Deno.env.get('STRIPE_WEBHOOK_SECRET')
+
+    if (!stripeSecretKey) {
+      console.error('STRIPE_SECRET_KEY not configured')
+      return new Response('Stripe secret key not configured', { status: 500 })
+    }
+
     // Initialize Stripe
-    const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') || '', {
+    const stripe = new Stripe(stripeSecretKey, {
       apiVersion: '2024-12-18.acacia',
     })
 

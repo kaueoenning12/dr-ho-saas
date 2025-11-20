@@ -5,6 +5,7 @@ import { MobileSidebar } from "@/components/layout/MobileSidebar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { UserProfileMenu } from "@/components/layout/UserProfileMenu";
 import { useAuth } from "@/contexts/AuthContext";
+import { hasValidPaidSubscription } from "@/lib/utils/subscription";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
@@ -110,12 +111,12 @@ export default function Settings() {
                             <Badge
                               variant="outline"
                               className={`${
-                                user.subscription.status === "active"
+                                hasValidPaidSubscription(user?.subscription)
                                   ? "bg-green-500/10 text-green-600 border-green-500/30"
                                   : "bg-red-500/10 text-red-600 border-red-500/30"
                               }`}
                             >
-                              {user.subscription.status === "active" ? "Ativo" : "Inativo"}
+                              {hasValidPaidSubscription(user?.subscription) ? "Ativo" : "Inativo"}
                             </Badge>
                           </div>
                           
@@ -152,7 +153,7 @@ export default function Settings() {
                         <div className="pt-4 border-t border-border/50">
                           <Button
                             onClick={() => navigate("/plans")}
-                            className="w-full sm:w-auto bg-cyan hover:bg-cyan/90 text-white"
+                            className="w-full sm:w-auto bg-cyan hover:bg-cyan/90 text-primary-foreground"
                           >
                             Ver todos os planos
                             <ArrowRight className="ml-2 h-4 w-4" />
@@ -162,7 +163,7 @@ export default function Settings() {
                     ) : (
                       <div className="text-center py-8">
                         <p className="text-navy/60 mb-4">Você ainda não possui um plano ativo</p>
-                        <Button onClick={() => navigate("/plans")} className="bg-cyan hover:bg-cyan/90 text-white">
+                        <Button onClick={() => navigate("/plans")} className="bg-cyan hover:bg-cyan/90 text-primary-foreground">
                           Escolher um plano
                         </Button>
                       </div>

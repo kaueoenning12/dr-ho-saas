@@ -95,7 +95,7 @@ export default function Forum() {
               </div>
               <Button 
                 onClick={() => navigate("/forum/new")}
-                className="group bg-gradient-to-r from-cyan to-blue-500 hover:from-cyan/90 hover:to-blue-500/90 text-white text-[11px] sm:text-xs px-2 sm:px-3 py-1 sm:py-1.5 h-7 sm:h-8 shrink-0 transition-all duration-300 hover:scale-105 hover:shadow-lg active:scale-95"
+                className="group bg-gradient-to-r from-cyan to-blue-500 hover:from-cyan/90 hover:to-blue-500/90 text-primary-foreground text-[11px] sm:text-xs px-2 sm:px-3 py-1 sm:py-1.5 h-7 sm:h-8 shrink-0 transition-all duration-300 hover:scale-105 hover:shadow-lg active:scale-95"
               >
                 <Plus className="h-3 sm:h-3.5 w-3 sm:w-3.5 mr-0.5 sm:mr-1 transition-transform duration-300 group-hover:rotate-90" />
                 <span className="hidden sm:inline">Nova</span>
@@ -238,13 +238,13 @@ export default function Forum() {
                       {/* Badges de Status */}
                       <div className="absolute top-3 right-3 flex gap-2 z-10">
                         {isNew && (
-                          <Badge className="bg-gradient-to-r from-cyan to-blue-500 text-white border-0 shadow-md text-[9px] sm:text-[10px] px-1.5 sm:px-2 py-0.5">
+                          <Badge className="bg-gradient-to-r from-cyan to-blue-500 text-primary-foreground border-0 shadow-md text-[9px] sm:text-[10px] px-1.5 sm:px-2 py-0.5">
                             <Sparkles className="h-2.5 w-2.5 mr-0.5 sm:mr-1" />
                             NOVO
                           </Badge>
                         )}
                         {isPopular && (
-                          <Badge className="bg-gradient-to-r from-orange-500 to-red-500 text-white border-0 shadow-md text-[9px] sm:text-[10px] px-1.5 sm:px-2 py-0.5">
+                          <Badge className="bg-gradient-to-r from-orange-500 to-red-500 text-primary-foreground border-0 shadow-md text-[9px] sm:text-[10px] px-1.5 sm:px-2 py-0.5">
                             <Flame className="h-2.5 w-2.5 mr-0.5 sm:mr-1" />
                             POPULAR
                           </Badge>
@@ -340,7 +340,7 @@ export default function Forum() {
                     </p>
                     <Button 
                       onClick={() => navigate("/forum/new")}
-                      className="group bg-gradient-to-r from-cyan to-blue-500 hover:from-cyan/90 hover:to-blue-500/90 text-white shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 active:scale-95"
+                      className="group bg-gradient-to-r from-cyan to-blue-500 hover:from-cyan/90 hover:to-blue-500/90 text-primary-foreground shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 active:scale-95"
                     >
                       <Plus className="h-4 w-4 mr-2 transition-transform duration-300 group-hover:rotate-90" />
                       Criar Nova Discussão

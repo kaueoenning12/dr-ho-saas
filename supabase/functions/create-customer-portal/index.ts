@@ -14,8 +14,26 @@ serve(async (req) => {
   }
 
   try {
+    // Get the request body
+    const body = await req.json()
+    const { userId, returnUrl, _stripeSecretKey, _siteUrl } = body
+
+    // Use Stripe secret key from request body (from .env.local) or fallback to Deno.env
+    const stripeSecretKey = _stripeSecretKey || Deno.env.get('STRIPE_SECRET_KEY') || ''
+    const siteUrl = _siteUrl || Deno.env.get('SITE_URL') || 'http://localhost:8080'
+
+    if (!stripeSecretKey) {
+      return new Response(
+        JSON.stringify({ error: 'Stripe secret key not configured' }),
+        { 
+          status: 500, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      )
+    }
+
     // Initialize Stripe
-    const stripe = new Stripe(Deno.env.get('STRIPE_SECRET_KEY') || '', {
+    const stripe = new Stripe(stripeSecretKey, {
       apiVersion: '2024-12-18.acacia',
     })
 
@@ -23,9 +41,6 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
-
-    // Get the request body
-    const { userId, returnUrl } = await req.json()
 
     if (!userId) {
       return new Response(
@@ -57,7 +72,7 @@ serve(async (req) => {
     // Create Stripe customer portal session
     const session = await stripe.billingPortal.sessions.create({
       customer: subscription.stripe_customer_id,
-      return_url: returnUrl || `${Deno.env.get('SITE_URL')}/settings`,
+      return_url: returnUrl || `${siteUrl}/settings`,
     })
 
     // Log the portal session creation

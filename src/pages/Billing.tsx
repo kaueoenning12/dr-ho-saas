@@ -13,6 +13,7 @@ import { useSubscriptionStatus } from "@/hooks/useSubscriptionCheck";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { formatDateBR, daysUntil } from "@/lib/utils";
+import { invokeStripeFunction } from "@/lib/stripe/edgeFunctionHelper";
 
 interface BillingData {
   subscription: any;
@@ -68,16 +69,10 @@ export default function Billing() {
     try {
       setIsOpeningPortal(true);
       
-      const { data, error } = await supabase.functions.invoke('create-customer-portal', {
-        body: {
-          userId: user.id,
-          returnUrl: window.location.origin + '/billing',
-        },
+      const data = await invokeStripeFunction('create-customer-portal', {
+        userId: user.id,
+        returnUrl: window.location.origin + '/billing',
       });
-
-      if (error) {
-        throw new Error(error.message || 'Erro ao abrir portal do cliente');
-      }
 
       if (data?.url) {
         window.location.href = data.url;

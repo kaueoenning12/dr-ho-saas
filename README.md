@@ -65,7 +65,10 @@ npm install
 ```
 
 ### 3. Configure as variáveis de ambiente
-Crie um arquivo `.env.local` na raiz do projeto:
+
+Para configuração completa do Stripe, consulte o guia detalhado: **[CONFIGURAR_STRIPE.md](./CONFIGURAR_STRIPE.md)**
+
+Crie um arquivo `.env.local` na raiz do projeto (use o arquivo `ENV_TEMPLATE.txt` como base):
 
 ```env
 # Supabase Configuration
@@ -74,6 +77,7 @@ VITE_SUPABASE_ANON_KEY=your_supabase_anon_key_here
 
 # Stripe Configuration
 VITE_STRIPE_PUBLISHABLE_KEY=your_stripe_publishable_key_here
+VITE_STRIPE_PRODUCT_ID=your_stripe_product_id_here
 ```
 
 ### 4. Configure o Supabase

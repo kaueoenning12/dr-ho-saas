@@ -352,26 +352,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       throw new Error(error.message || "Erro ao criar conta");
     }
 
-    // Always try to save/update profile with number, even if no session yet
-    // The trigger will also handle this, but we ensure it's saved here too
-    if (data.user) {
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .upsert(
-          {
-            user_id: data.user.id,
-            email,
-            name,
-            number: sanitizedNumber,
-          },
-          { onConflict: "user_id" }
-        );
-
-      if (profileError) {
-        console.warn("⚠️ [AUTH] Não foi possível salvar o perfil do usuário:", profileError);
-      }
-    }
-
+    // Profile is automatically created by the handle_new_user trigger with SECURITY DEFINER
+    // No manual upsert needed here - the trigger handles it correctly regardless of session state
+    
     // If session exists, fetch user data immediately
     if (data.user && data.session) {
       await fetchUserData(data.user, true);

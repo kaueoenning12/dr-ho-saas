@@ -23,6 +23,81 @@ export function ImageViewer({ document }: ImageViewerProps) {
   const imageRef = useRef<HTMLImageElement>(null);
   const { user } = useAuth();
 
+  // Calculate optimal scale with responsive margins
+  // Allows up to 96% zoom for small images on mobile, better space utilization
+  const calculateOptimalScale = (): number | null => {
+    if (!containerRef.current || !imageRef.current || !imageRef.current.complete) {
+      return null;
+    }
+
+    const containerWidth = containerRef.current.clientWidth;
+    const containerHeight = containerRef.current.clientHeight;
+    const imageWidth = imageRef.current.naturalWidth;
+    const imageHeight = imageRef.current.naturalHeight;
+
+    if (imageWidth <= 0 || imageHeight <= 0) {
+      return null;
+    }
+
+    // Responsive margins: smaller on mobile for better space utilization
+    const isMobile = containerWidth < 768;
+    const horizontalMargin = isMobile ? 16 : 32;
+    const verticalMargin = isMobile ? 24 : 48;
+
+    // 1. Calcular scale normal primeiro para entender o tamanho relativo da imagem
+    const scaleX = (containerWidth - horizontalMargin) / imageWidth;
+    const scaleY = (containerHeight - verticalMargin) / imageHeight;
+    const calculatedScale = Math.min(scaleX, scaleY);
+
+    // 2. Verificar se largura permite 96%
+    const imageWidthAt96 = imageWidth * 0.96;
+    const fitsAt96Width = imageWidthAt96 + horizontalMargin <= containerWidth;
+
+    // 3. Heurística: verificar se imagem é relativamente pequena
+    // Se imageWidth < containerWidth * 3, considerar relativamente pequena
+    const isRelativelySmall = imageWidth < containerWidth * 3;
+
+    // Logs de debug
+    console.log('[ImageViewer] Debug:', {
+      containerWidth,
+      containerHeight,
+      imageWidth,
+      imageHeight,
+      imageWidthAt96,
+      fitsAt96Width,
+      horizontalMargin,
+      verticalMargin,
+      isMobile,
+      scaleX,
+      scaleY,
+      calculatedScale,
+      isRelativelySmall
+    });
+
+    // 4. Se calculatedScale >= 0.3 (imagem não é extremamente grande) E
+    //    (largura permite 96% OU imagem é relativamente pequena), usar 96%
+    if (calculatedScale >= 0.3 && (fitsAt96Width || isRelativelySmall)) {
+      console.log('[ImageViewer] Using 96% - calculatedScale >= 0.3 and (width fits or relatively small)');
+      return 0.96;
+    }
+
+    // 5. Caso contrário, usar calculatedScale com limites apropriados
+    let finalScale: number;
+    if (calculatedScale > 1.0) {
+      // Image is smaller than container - cap at 0.96 to avoid pixelation
+      finalScale = 0.96;
+    } else {
+      // Use calculated scale (may be less than 0.96 for very large images)
+      finalScale = calculatedScale;
+    }
+
+    // 6. Garantir mínimo de 0.3
+    finalScale = Math.max(0.3, finalScale);
+
+    console.log('[ImageViewer] Final scale:', finalScale);
+    return finalScale;
+  };
+
   useEffect(() => {
     if (!document) return;
 
@@ -129,20 +204,14 @@ export function ImageViewer({ document }: ImageViewerProps) {
   // Calculate auto scale on window resize (only if image is loaded)
   useEffect(() => {
     const calculateAutoScale = () => {
-      if (containerRef.current && imageRef.current && imageRef.current.complete) {
-        const containerWidth = containerRef.current.clientWidth;
-        const containerHeight = containerRef.current.clientHeight;
-        const imageWidth = imageRef.current.naturalWidth;
-        const imageHeight = imageRef.current.naturalHeight;
-        
-        if (imageWidth > 0 && imageHeight > 0) {
-          const horizontalMargin = 64;
-          const verticalMargin = 64;
-          const scaleX = (containerWidth - horizontalMargin) / imageWidth;
-          const scaleY = (containerHeight - verticalMargin) / imageHeight;
-          const calculatedScale = Math.min(scaleX, scaleY, 1); // Don't scale up beyond 100%
-          const boundedScale = Math.max(0.3, Math.min(1.0, calculatedScale));
-          setScale(boundedScale);
+      // Verificar se container tem dimensões válidas antes de calcular
+      if (containerRef.current && 
+          containerRef.current.clientWidth > 0 && 
+          containerRef.current.clientHeight > 0) {
+        const optimalScale = calculateOptimalScale();
+        if (optimalScale !== null) {
+          console.log('[ImageViewer] Setting scale on resize:', optimalScale);
+          setScale(optimalScale);
         }
       }
     };
@@ -163,42 +232,37 @@ export function ImageViewer({ document }: ImageViewerProps) {
   };
 
   const handleZoomReset = () => {
-    if (containerRef.current && imageRef.current && imageRef.current.complete) {
-      const containerWidth = containerRef.current.clientWidth;
-      const containerHeight = containerRef.current.clientHeight;
-      const imageWidth = imageRef.current.naturalWidth;
-      const imageHeight = imageRef.current.naturalHeight;
-      
-      if (imageWidth > 0 && imageHeight > 0) {
-        const horizontalMargin = 64;
-        const verticalMargin = 64;
-        const scaleX = (containerWidth - horizontalMargin) / imageWidth;
-        const scaleY = (containerHeight - verticalMargin) / imageHeight;
-        const calculatedScale = Math.min(scaleX, scaleY, 1); // Don't scale up beyond 100%
-        const boundedScale = Math.max(0.3, Math.min(1.0, calculatedScale));
-        setScale(boundedScale);
-      }
+    const optimalScale = calculateOptimalScale();
+    if (optimalScale !== null) {
+      setScale(optimalScale);
     }
   };
 
   const handleImageLoad = () => {
     setIsLoading(false);
-    if (containerRef.current && imageRef.current) {
-      const containerWidth = containerRef.current.clientWidth;
-      const containerHeight = containerRef.current.clientHeight;
-      const imageWidth = imageRef.current.naturalWidth;
-      const imageHeight = imageRef.current.naturalHeight;
-      
-      if (imageWidth > 0 && imageHeight > 0) {
-        const horizontalMargin = 64;
-        const verticalMargin = 64;
-        const scaleX = (containerWidth - horizontalMargin) / imageWidth;
-        const scaleY = (containerHeight - verticalMargin) / imageHeight;
-        const calculatedScale = Math.min(scaleX, scaleY, 1); // Don't scale up beyond 100%
-        const boundedScale = Math.max(0.3, Math.min(1.0, calculatedScale));
-        setScale(boundedScale);
+    // Aumentar delay e adicionar verificação de dimensões
+    setTimeout(() => {
+      // Verificar se container tem dimensões válidas
+      if (containerRef.current && 
+          containerRef.current.clientWidth > 0 && 
+          containerRef.current.clientHeight > 0) {
+        const optimalScale = calculateOptimalScale();
+        if (optimalScale !== null) {
+          console.log('[ImageViewer] Setting scale on image load:', optimalScale);
+          setScale(optimalScale);
+        }
+      } else {
+        // Retry após mais tempo se dimensões ainda não estão disponíveis
+        console.log('[ImageViewer] Container dimensions not ready, retrying...');
+        setTimeout(() => {
+          const optimalScale = calculateOptimalScale();
+          if (optimalScale !== null) {
+            console.log('[ImageViewer] Setting scale on retry:', optimalScale);
+            setScale(optimalScale);
+          }
+        }, 100);
       }
-    }
+    }, 100); // Aumentar de 50ms para 100ms
   };
 
   const handleImageError = () => {

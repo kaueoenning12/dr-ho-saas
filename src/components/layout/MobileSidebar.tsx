@@ -19,7 +19,7 @@ export function MobileSidebar() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const { resolvedTheme } = useTheme();
-  const logoSrc = resolvedTheme === "dark" ? "/dr_logo_branca.png" : "/dr_logo.png";
+  const logoSrc = resolvedTheme === "dark" || resolvedTheme === "black" ? "/dr_logo_branca.png" : "/dr_logo.png";
 
   const handleLogout = () => {
     logout();

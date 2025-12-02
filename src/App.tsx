@@ -85,8 +85,9 @@ const App = () => (
       >
         <ThemeProvider
           attribute="class"
-          defaultTheme="system"
+          defaultTheme="light"
           enableSystem
+          themes={["light", "dark", "system"]}
           disableTransitionOnChange
         >
           <TooltipProvider>

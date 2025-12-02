@@ -110,6 +110,48 @@
     --sidebar-border: 0 0% 14%;
     --sidebar-ring: 193 75% 61%;
   }
+
+  .black {
+    --background: 0 0% 0%;           /* Pure black */
+    --foreground: 0 0% 98%;
+
+    --card: 0 0% 4%;
+    --card-foreground: 0 0% 98%;
+
+    --popover: 0 0% 4%;
+    --popover-foreground: 0 0% 98%;
+
+    --primary: 0 0% 98%;
+    --primary-foreground: 229 82% 16%;
+
+    --secondary: 193 75% 61%;         /* Cyan stays bright */
+    --secondary-foreground: 229 82% 16%;
+
+    --muted: 0 0% 8%;
+    --muted-foreground: 0 0% 70%;
+
+    --accent: 193 75% 61%;            /* Cyan */
+    --accent-foreground: 229 82% 16%;
+
+    --success: 166 77% 69%;           /* Aqua */
+    --success-foreground: 229 82% 16%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 0 0% 10%;
+    --input: 0 0% 10%;
+    --ring: 193 75% 61%;
+
+    --sidebar-background: 0 0% 2%;   /* Almost black */
+    --sidebar-foreground: 0 0% 98%;
+    --sidebar-primary: 193 75% 61%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 193 75% 61%;
+    --sidebar-accent-foreground: 0 0% 100%;
+    --sidebar-border: 0 0% 8%;
+    --sidebar-ring: 193 75% 61%;
+  }
 }
 
 @layer base {

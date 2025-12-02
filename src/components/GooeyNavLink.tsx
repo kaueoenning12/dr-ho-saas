@@ -77,7 +77,7 @@ export function GooeyNavLink({
         particle.style.setProperty('--scale', `${p.scale}`);
         
         // Adapt colors based on theme
-        const isDark = resolvedTheme === 'dark';
+        const isDark = resolvedTheme === 'dark' || resolvedTheme === 'black';
         const colorMap: Record<number, string> = {
           1: isDark ? '#4CC9E9' : '#0B1247', // cyan or navy
           2: isDark ? '#73EDCF' : '#4CC9E9', // aqua or cyan
@@ -181,7 +181,7 @@ export function GooeyNavLink({
     return () => resizeObserver.disconnect();
   }, [isActive]);
 
-  const isDark = resolvedTheme === 'dark';
+  const isDark = resolvedTheme === 'dark' || resolvedTheme === 'black';
   
   return (
     <>

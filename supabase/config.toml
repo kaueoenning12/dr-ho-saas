@@ -1,0 +1,10 @@
+project_id = "jjkptijbjyxbrgbxwgxf"
+
+[functions.create-notifications]
+verify_jwt = false
+
+[functions.update-subscription-plan]
+verify_jwt = false
+
+[functions.upload-document]
+verify_jwt = false

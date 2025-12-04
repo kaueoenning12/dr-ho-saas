@@ -16,6 +16,7 @@ import { lazyWithRetry } from "./lib/utils/lazyRetry";
 // Lazy load pages with retry mechanism
 const Login = lazyWithRetry(() => import("./pages/Login"));
 const Register = lazyWithRetry(() => import("./pages/Register"));
+const ResetPassword = lazyWithRetry(() => import("./pages/ResetPassword"));
 const Documents = lazyWithRetry(() => import("./pages/Documents"));
 const Settings = lazyWithRetry(() => import("./pages/Settings"));
 const Plans = lazyWithRetry(() => import("./pages/Plans"));
@@ -99,6 +100,7 @@ const App = () => (
                   <Routes>
                     <Route path="/login" element={<Login />} />
                     <Route path="/auth" element={<Register />} />
+                    <Route path="/reset-password" element={<ResetPassword />} />
                     <Route
                       path="/"
                       element={

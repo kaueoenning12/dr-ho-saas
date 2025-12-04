@@ -23,6 +23,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, name: string, number?: string) => Promise<void>;
   logout: () => void;
+  resetPassword: (email: string) => Promise<void>;
   refreshSubscription: () => Promise<void>;
   isAuthenticated: boolean;
   isLoading: boolean;
@@ -388,6 +389,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     lastFetchTime.current = 0;
   };
 
+  const resetPassword = async (email: string) => {
+    const redirectUrl = `${window.location.origin}/reset-password`;
+    
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: redirectUrl,
+    });
+
+    if (error) {
+      throw new Error(error.message || "Erro ao enviar email de recuperação");
+    }
+  };
+
   const refreshSubscriptionRef = useRef<Promise<void> | null>(null);
   
   const refreshSubscription = async (retries = 1, delay = 1000) => {
@@ -459,6 +472,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         login,
         register,
         logout,
+        resetPassword,
         refreshSubscription,
         isAuthenticated: !!user,
         isLoading,

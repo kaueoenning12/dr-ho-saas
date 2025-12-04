@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,12 +8,14 @@ import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "@/hooks/use-toast";
 import { useTheme } from "next-themes";
+import { ForgotPasswordDialog } from "@/components/ForgotPasswordDialog";
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [forgotPasswordOpen, setForgotPasswordOpen] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
   const { resolvedTheme } = useTheme();
@@ -115,11 +117,21 @@ export default function Login() {
               {loading ? "Entrando..." : "Entrar"}
             </Button>
             <div className="flex items-center justify-start pt-1">
-              <Link to="#" className="text-sm text-foreground/70 hover:text-foreground transition-colors">Esqueci minha senha</Link>
+              <button 
+                type="button"
+                onClick={() => setForgotPasswordOpen(true)}
+                className="text-sm text-foreground/70 hover:text-foreground transition-colors"
+              >
+                Esqueci minha senha
+              </button>
             </div>
           </form>
         </CardContent>
       </Card>
+      <ForgotPasswordDialog 
+        open={forgotPasswordOpen} 
+        onOpenChange={setForgotPasswordOpen} 
+      />
     </div>
   );
 }

@@ -26,7 +26,7 @@ Uma plataforma SaaS completa para gestão de relatórios técnicos de riscos ocu
 ## 🛠️ Tecnologias
 
 ### Frontend
-- **React 18** com TypeScript
+- **React 18** com TypeScripts
 - **Vite** para build e desenvolvimento
 - **Tailwind CSS** para estilização
 - **shadcn/ui** para componentes

@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { CheckCircle, ArrowRight, FileText } from "lucide-react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
@@ -19,12 +20,24 @@ const PREMIUM_PLAN_ID = 'cb2078ac-1741-4a7b-afc1-48cbf05efd5c';
 export default function PlansSuccess() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { user, isAuthenticated, refreshSubscription } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
   const hasProcessedRef = useRef(false);
   const toastShownRef = useRef(false);
 
   const sessionId = searchParams.get('session_id');
+
+  // Verificar se deve redirecionar para home após reload
+  useEffect(() => {
+    const shouldRedirectToHome = sessionStorage.getItem('subscription_confirmed_redirect');
+    if (shouldRedirectToHome === 'true') {
+      // Limpar a flag
+      sessionStorage.removeItem('subscription_confirmed_redirect');
+      // Redirecionar para home
+      navigate('/', { replace: true });
+    }
+  }, [navigate]);
 
   useEffect(() => {
     // Evitar múltiplas execuções
@@ -300,6 +313,10 @@ export default function PlansSuccess() {
         // Refresh subscription data no contexto
         await refreshSubscription();
         
+        // Invalidar explicitamente o cache do React Query para garantir atualização
+        queryClient.invalidateQueries({ queryKey: ["user-subscription"] });
+        queryClient.invalidateQueries({ queryKey: ["subscription"] });
+        
         // Buscar subscription com retry
         const subscription = await fetchSubscriptionWithRetry();
 
@@ -333,6 +350,9 @@ export default function PlansSuccess() {
               // Aguardar e buscar novamente
               await new Promise(resolve => setTimeout(resolve, 1000));
               await refreshSubscription();
+              // Invalidar cache novamente após retry
+              queryClient.invalidateQueries({ queryKey: ["user-subscription"] });
+              queryClient.invalidateQueries({ queryKey: ["subscription"] });
               const retrySubscription = await fetchSubscriptionWithRetry();
               
               if (retrySubscription?.plan_id === PREMIUM_PLAN_ID) {
@@ -342,6 +362,11 @@ export default function PlansSuccess() {
                   toastShownRef.current = true;
                 }
                 setIsLoading(false);
+                // Marcar para redirecionar após reload e recarregar a página
+                sessionStorage.setItem('subscription_confirmed_redirect', 'true');
+                setTimeout(() => {
+                  window.location.reload();
+                }, 1500);
                 return;
               }
             }
@@ -351,10 +376,18 @@ export default function PlansSuccess() {
           if (!toastShownRef.current) {
             if (isPremium) {
               toast.success("Assinatura premium ativada com sucesso!");
+              toastShownRef.current = true;
+              setIsLoading(false);
+              // Marcar para redirecionar após reload e recarregar a página
+              sessionStorage.setItem('subscription_confirmed_redirect', 'true');
+              setTimeout(() => {
+                window.location.reload();
+              }, 1500);
+              return;
             } else {
               toast.warning("Assinatura ativada, mas o plano pode não ter sido atualizado corretamente. Por favor, atualize a página.");
+              toastShownRef.current = true;
             }
-            toastShownRef.current = true;
           }
         } else {
           // Se não encontrou após todas as tentativas, tentar atualizar manualmente
@@ -374,6 +407,9 @@ export default function PlansSuccess() {
           
           if (manualUpdateSuccess) {
             await refreshSubscription();
+            // Invalidar cache após atualização manual
+            queryClient.invalidateQueries({ queryKey: ["user-subscription"] });
+            queryClient.invalidateQueries({ queryKey: ["subscription"] });
             const finalSubscription = await fetchSubscriptionWithRetry();
             if (finalSubscription) {
               const isPremium = finalSubscription.plan_id === PREMIUM_PLAN_ID;
@@ -386,6 +422,11 @@ export default function PlansSuccess() {
                 toastShownRef.current = true;
               }
               setIsLoading(false);
+              // Marcar para redirecionar após reload e recarregar a página
+              sessionStorage.setItem('subscription_confirmed_redirect', 'true');
+              setTimeout(() => {
+                window.location.reload();
+              }, 1500);
               return;
             }
           }

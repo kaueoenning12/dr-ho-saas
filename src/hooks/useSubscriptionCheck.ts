@@ -105,21 +105,83 @@ export function useSubscriptionCheck() {
       return;
     }
 
+    // CRÍTICO: Sempre derivar status de user.subscription quando ele mudar
+    // Isso garante que o hook reaja imediatamente às mudanças no AuthContext
+    // CRÍTICO: Sempre derivar status de user.subscription quando ele mudar
+    // Isso garante que o hook reaja imediatamente às mudanças no AuthContext
     const localStatus = deriveStatusFromUserSubscription(user.subscription);
     
-    // OTIMIZAÇÃO: Se temos dados de subscription do user, usar diretamente sem fazer check adicional
+    // Se temos dados de subscription do user, atualizar estado imediatamente
+    // Isso garante que mudanças em user.subscription sejam refletidas imediatamente
     if (localStatus) {
-      setSubscriptionCheck({
-        hasAccess: localStatus.isActive,
-        subscription: localStatus,
-        redirectTo: localStatus.isActive ? undefined : "/plans",
+      // Sempre atualizar o estado quando user.subscription mudar
+      // Usar função de atualização para comparar e evitar re-renders desnecessários
+      setSubscriptionCheck((prev) => {
+        // Comparar valores relevantes para determinar se precisa atualizar
+        const hasChanged = 
+          prev.hasAccess !== localStatus.isActive ||
+          prev.subscription?.status !== localStatus.status ||
+          prev.subscription?.expiresAt !== localStatus.expiresAt ||
+          prev.subscription?.isActive !== localStatus.isActive ||
+          prev.subscription?.isExpired !== localStatus.isExpired;
+        
+        if (hasChanged) {
+          return {
+            hasAccess: localStatus.isActive,
+            subscription: localStatus,
+            redirectTo: localStatus.isActive ? undefined : "/plans",
+          };
+        }
+        return prev;
       });
-      setIsLoading(false); // Não precisamos fazer check adicional se já temos dados
-      return; // Retornar cedo, não fazer check desnecessário
+      setIsLoading(false);
+      
+      // Se temos subscription local, não precisamos fazer check adicional imediatamente
+      // Mas podemos fazer um check em background para garantir sincronização
+      // (apenas se não estiver em progresso e passou tempo suficiente desde último check)
+      const now = Date.now();
+      const timeSinceLastCheck = now - lastCheckTimeRef.current;
+      if (!checkInProgressRef.current && timeSinceLastCheck > 5000) {
+        // Fazer check em background para garantir sincronização (não bloqueia UI)
+        checkInProgressRef.current = true;
+        lastCheckTimeRef.current = now;
+        
+        checkSubscriptionAccess(user.id)
+          .then((result) => {
+            if (!result.isError && result.subscription) {
+              // Se o resultado do servidor for diferente, atualizar
+              const serverStatus = result.subscription;
+              const currentStatus = localStatus;
+              
+              if (
+                serverStatus.isActive !== currentStatus.isActive ||
+                serverStatus.status !== currentStatus.status ||
+                serverStatus.expiresAt !== currentStatus.expiresAt
+              ) {
+                console.log('[useSubscriptionCheck] Status do servidor diferente, atualizando...', {
+                  local: currentStatus,
+                  server: serverStatus,
+                });
+                setSubscriptionCheck({
+                  hasAccess: serverStatus.isActive,
+                  subscription: serverStatus,
+                  redirectTo: serverStatus.isActive ? undefined : "/plans",
+                });
+              }
+            }
+          })
+          .catch((err) => {
+            console.error('Error checking subscription in background:', err);
+          })
+          .finally(() => {
+            checkInProgressRef.current = false;
+          });
+      }
+      
+      return; // Retornar cedo, já atualizamos com dados locais
     }
 
-    // Só fazer check se realmente não temos dados de subscription
-    // Mas manter hasAccess: true (otimista) enquanto carrega para não mostrar "sem plano" incorretamente
+    // Se não temos dados locais, fazer check no servidor
     setIsLoading(true);
     let cancelled = false;
 
@@ -133,6 +195,7 @@ export function useSubscriptionCheck() {
       const now = Date.now();
       const timeSinceLastCheck = now - lastCheckTimeRef.current;
       if (timeSinceLastCheck < 2000) {
+        setIsLoading(false);
         return;
       }
 
@@ -173,13 +236,13 @@ export function useSubscriptionCheck() {
       }
     };
 
-    // Fazer check apenas se não temos dados locais
+    // Fazer check se não temos dados locais
     checkSubscription();
 
     return () => {
       cancelled = true;
     };
-  }, [isAuthenticated, user?.id, user?.subscription?.status, user?.subscription?.expires_at]);
+  }, [isAuthenticated, user?.id, user?.subscription?.status, user?.subscription?.expires_at, user?.subscription?.plan_id, user?.subscription]);
 
   return {
     ...subscriptionCheck,

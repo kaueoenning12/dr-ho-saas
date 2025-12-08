@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, useRef, ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
@@ -47,6 +48,8 @@ export const useAuth = () => {
 };
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
+  const queryClient = useQueryClient();
+  
   // OTIMIZAÇÃO: Carregar cache síncronamente no estado inicial
   // Isso elimina o delay do getSession() quando temos cache válido
   const initializeFromCache = (): { user: User | null; profile: Profile | null; hasCache: boolean } => {
@@ -406,6 +409,41 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     };
   }, []);
 
+  // Realtime listener para atualizações de subscription (separado para reagir a mudanças no user)
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const subscriptionChannel = supabase
+      .channel(`user-subscription-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // INSERT, UPDATE, DELETE
+          schema: 'public',
+          table: 'user_subscriptions',
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          console.log('[AUTH] Realtime: Subscription atualizada:', payload.eventType);
+          // Atualizar dados do usuário quando subscription mudar
+          if (currentUserRef.current) {
+            fetchUserData(currentUserRef.current as any, false)
+              .then(() => {
+                // Invalidar cache do React Query
+                queryClient.invalidateQueries({ queryKey: ["user-subscription"] });
+                queryClient.invalidateQueries({ queryKey: ["subscription"] });
+              })
+              .catch(console.error);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(subscriptionChannel);
+    };
+  }, [user?.id, queryClient]);
+
   const login = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({
       email,
@@ -523,6 +561,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 planId: subscription.plan_id,
                 status: subscription.status,
               });
+              
+              // Invalidar cache do React Query para forçar atualização em todos os componentes
+              queryClient.invalidateQueries({ queryKey: ["user-subscription"] });
+              queryClient.invalidateQueries({ queryKey: ["subscription"] });
+              
               return;
             }
 

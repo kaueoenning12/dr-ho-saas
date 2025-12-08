@@ -1,10 +1,10 @@
 /**
- * Helper para chamar Edge Functions do Stripe passando as chaves do .env
- * Isso permite configurar tudo via .env sem precisar mexer no Supabase
+ * Helper para chamar Edge Functions do Stripe
+ * As chaves do Stripe agora são gerenciadas via Supabase (tabela stripe_config)
+ * Mantém fallback para .env durante transição
  */
 
-// Lê as variáveis do .env (ou .env.local)
-// O Vite expõe variáveis que começam com VITE_ para o frontend
+// Fallback para .env durante migração (será removido)
 const STRIPE_SECRET_KEY = import.meta.env.VITE_STRIPE_SECRET_KEY || '';
 const SITE_URL = import.meta.env.VITE_SITE_URL || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8080');
 
@@ -26,15 +26,14 @@ export function prepareStripeRequest<T extends Record<string, any>>(
     ...body,
   };
 
-  // Adiciona as chaves do Stripe se estiverem configuradas no .env
-  if (STRIPE_SECRET_KEY) {
-    request._stripeSecretKey = STRIPE_SECRET_KEY;
-  } else {
-    // Debug: avisar se a chave não foi encontrada
-    if (import.meta.env.DEV) {
-      console.warn('[Stripe Helper] ⚠️ VITE_STRIPE_SECRET_KEY não encontrada no .env');
-      console.warn('[Stripe Helper] Verifique se a variável está definida no arquivo .env');
-    }
+  // NOTA: Secret key não é mais passada do frontend para as edge functions
+  // As edge functions buscam a secret_key diretamente do Supabase (tabela stripe_config)
+  // Mantemos fallback para .env apenas durante transição
+  // TODO: Remover este fallback após migração completa
+  if (STRIPE_SECRET_KEY && import.meta.env.DEV) {
+    console.warn('[Stripe Helper] ⚠️ Usando VITE_STRIPE_SECRET_KEY do .env (fallback)');
+    console.warn('[Stripe Helper] Configure a secret_key na tabela stripe_config do Supabase');
+    // Não passar mais a secret_key do frontend - edge functions buscam do Supabase
   }
 
   if (SITE_URL) {
@@ -111,7 +110,18 @@ export async function invokeStripeFunction(
       // Mapear mensagens de erro para português
       let userFriendlyMessage = errorMessage || error.message;
       
-      if (errorDetails?.code === 'ALREADY_SUBSCRIBED') {
+      // Erros específicos do Stripe relacionados a Price/Product IDs
+      if (errorDetails?.stripeErrorCode === 'resource_missing') {
+        userFriendlyMessage = errorDetails.details || 'O Price ID configurado não existe no Stripe. Verifique se o ID está correto e se foi criado no ambiente correto (test/live).';
+      } else if (errorDetails?.stripeErrorCode === 'parameter_invalid_empty') {
+        userFriendlyMessage = errorDetails.details || 'O Price ID fornecido está vazio ou é inválido. Verifique a configuração do plano.';
+      } else if (errorDetails?.stripeErrorCode === 'parameter_invalid_integer') {
+        userFriendlyMessage = errorDetails.details || 'Um dos parâmetros enviados ao Stripe é inválido. Verifique a configuração do plano.';
+      } else if (errorMessage?.includes('Price ID inválido') || errorMessage?.includes('Product ID inválido')) {
+        userFriendlyMessage = errorDetails?.details || errorMessage || 'O ID do Stripe configurado está em formato inválido.';
+      } else if (errorMessage?.includes('Plano não configurado no Stripe')) {
+        userFriendlyMessage = errorDetails?.details || 'Este plano não possui Price ID do Stripe configurado. Configure o stripe_price_id no plano.';
+      } else if (errorDetails?.code === 'ALREADY_SUBSCRIBED') {
         userFriendlyMessage = errorDetails.error || 'Você já possui uma assinatura ativa para este plano. Acesse a página de cobrança para gerenciar sua assinatura.';
       } else if (errorMessage?.includes('already has an active')) {
         userFriendlyMessage = 'Você já possui uma assinatura ativa. Acesse a página de cobrança para gerenciar sua assinatura.';
@@ -123,6 +133,8 @@ export async function invokeStripeFunction(
         userFriendlyMessage = 'Erro de configuração do sistema de pagamento. Entre em contato com o suporte.';
       } else if (errorMessage?.includes('Missing required fields')) {
         userFriendlyMessage = 'Dados incompletos. Por favor, tente novamente.';
+      } else if (errorMessage?.includes('Erro na requisição ao Stripe') || errorMessage?.includes('Erro na API do Stripe')) {
+        userFriendlyMessage = errorDetails?.details || errorMessage || 'Erro ao se comunicar com o Stripe. Verifique a configuração do plano.';
       }
 
       const enhancedError = new Error(userFriendlyMessage);

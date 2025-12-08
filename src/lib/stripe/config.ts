@@ -1,11 +1,38 @@
+// Stripe configuration - will be loaded from Supabase
+// Fallback to .env for backward compatibility during migration
 export const STRIPE_CONFIG = {
-  publishableKey: import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY,
-  productId: import.meta.env.VITE_STRIPE_PRODUCT_ID,
+  publishableKey: import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY, // Fallback
+  productId: import.meta.env.VITE_STRIPE_PRODUCT_ID, // Fallback - will be removed, using plan-specific IDs
   apiVersion: '2024-12-18.acacia' as const,
   locale: 'pt-BR' as const,
   currency: 'BRL' as const,
   country: 'BR' as const,
 } as const;
+
+// Function to get publishable key from Supabase (async)
+// This will be used by components that need the key
+export async function getStripePublishableKey(): Promise<string | null> {
+  try {
+    const { supabase } = await import('@/integrations/supabase/client');
+    const { data, error } = await supabase
+      .from("stripe_config")
+      .select("publishable_key")
+      .eq("is_active", true)
+      .maybeSingle();
+
+    if (error) {
+      console.warn('[Stripe Config] Erro ao buscar publishable_key do Supabase:', error);
+      // Fallback to .env
+      return STRIPE_CONFIG.publishableKey || null;
+    }
+
+    return data?.publishable_key || STRIPE_CONFIG.publishableKey || null;
+  } catch (error) {
+    console.warn('[Stripe Config] Erro ao buscar publishable_key:', error);
+    // Fallback to .env
+    return STRIPE_CONFIG.publishableKey || null;
+  }
+}
 
 // Debug: Log configuration status in development
 if (import.meta.env.DEV) {
@@ -16,6 +43,7 @@ if (import.meta.env.DEV) {
       : 'não configurada',
     hasProductId: !!STRIPE_CONFIG.productId,
     productId: STRIPE_CONFIG.productId || 'não configurado',
+    note: 'Configurações serão carregadas do Supabase quando disponíveis',
   });
 }
 

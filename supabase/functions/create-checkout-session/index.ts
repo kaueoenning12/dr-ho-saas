@@ -59,14 +59,46 @@ serve(async (req) => {
       )
     }
 
-    // Use Stripe secret key from request body (from .env) or fallback to Deno.env
-    const stripeSecretKey = _stripeSecretKey || Deno.env.get('STRIPE_SECRET_KEY') || ''
-    const siteUrl = _siteUrl || Deno.env.get('SITE_URL') || 'http://localhost:8080'
+    // Initialize Supabase client first (needed to fetch Stripe config)
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+
+    // Get Stripe secret key from Supabase (stripe_config table)
+    // Fallback to request body or Deno.env for backward compatibility
+    let stripeSecretKey = '';
+    let siteUrl = _siteUrl || Deno.env.get('SITE_URL') || 'http://localhost:8080';
+
+    try {
+      // Try to get active Stripe config from Supabase
+      const { data: stripeConfig, error: configError } = await supabase
+        .from('stripe_config')
+        .select('secret_key')
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (!configError && stripeConfig?.secret_key) {
+        stripeSecretKey = stripeConfig.secret_key;
+        console.log('[Checkout Session] Usando secret_key do Supabase (stripe_config)');
+      } else {
+        // Fallback to request body or Deno.env
+        stripeSecretKey = _stripeSecretKey || Deno.env.get('STRIPE_SECRET_KEY') || '';
+        if (stripeSecretKey) {
+          console.warn('[Checkout Session] Usando secret_key do fallback (.env ou request body)');
+        }
+      }
+    } catch (error) {
+      console.warn('[Checkout Session] Erro ao buscar config do Supabase, usando fallback:', error);
+      stripeSecretKey = _stripeSecretKey || Deno.env.get('STRIPE_SECRET_KEY') || '';
+    }
 
     if (!stripeSecretKey) {
       console.error('[Checkout Session] Stripe secret key não configurada')
       return new Response(
-        JSON.stringify({ error: 'Stripe secret key not configured' }),
+        JSON.stringify({ 
+          error: 'Stripe secret key not configured',
+          details: 'Configure a secret_key na tabela stripe_config do Supabase ou use variável de ambiente STRIPE_SECRET_KEY'
+        }),
         { 
           status: 500, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
@@ -79,12 +111,12 @@ serve(async (req) => {
       apiVersion: '2024-12-18.acacia',
     })
 
-    // Initialize Supabase client
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
-
-    // Get the subscription plan
+    // Get the subscription plan - FORÇAR BUSCA SEM CACHE
+    console.log('[Checkout Session] 🔍 Buscando plano no banco de dados:', {
+      planId: planId,
+      timestamp: new Date().toISOString(),
+    });
+    
     const { data: plan, error: planError } = await supabase
       .from('subscription_plans')
       .select('*')
@@ -93,6 +125,11 @@ serve(async (req) => {
       .single()
 
     if (planError || !plan) {
+      console.error('[Checkout Session] ❌ Erro ao buscar plano:', {
+        planId: planId,
+        error: planError,
+        planFound: !!plan,
+      });
       return new Response(
         JSON.stringify({ error: 'Plan not found or inactive' }),
         { 
@@ -101,6 +138,22 @@ serve(async (req) => {
         }
       )
     }
+
+    // Log completo do plano retornado do banco
+    console.log('[Checkout Session] 📦 Plano retornado do banco de dados:', {
+      planId: plan.id,
+      planName: plan.name,
+      price: plan.price,
+      stripe_price_id: plan.stripe_price_id || 'NULL/Vazio',
+      stripe_product_id: plan.stripe_product_id || 'NULL/Vazio',
+      stripe_price_id_type: typeof plan.stripe_price_id,
+      stripe_price_id_length: plan.stripe_price_id?.length || 0,
+      stripe_product_id_type: typeof plan.stripe_product_id,
+      stripe_product_id_length: plan.stripe_product_id?.length || 0,
+      is_active: plan.is_active,
+      updated_at: plan.updated_at,
+      timestamp: new Date().toISOString(),
+    });
 
     // Validação: Bloquear checkout de planos gratuitos
     if (plan.price <= 0) {
@@ -121,18 +174,84 @@ serve(async (req) => {
       );
     }
 
-    // Validação: Verificar se o plano tem IDs do Stripe configurados
-    if (!plan.stripe_product_id || !plan.stripe_price_id) {
-      console.error('[Checkout Session] ❌ Plano sem IDs do Stripe configurados:', {
+    // Validação: Verificar se o plano tem Price ID do Stripe configurado
+    // Product ID pode ser do plano ou usar o default_product_id da configuração
+    const priceId = plan.stripe_price_id;
+    const planProductId = plan.stripe_product_id;
+    
+    console.log('[Checkout Session] 📋 Validação de IDs do Stripe (valores RAW do banco):', {
+      planId: plan.id,
+      planName: plan.name,
+      priceId_RAW: priceId,
+      priceId_STRINGIFIED: JSON.stringify(priceId),
+      planProductId_RAW: planProductId,
+      planProductId_STRINGIFIED: JSON.stringify(planProductId),
+      priceIdType: typeof priceId,
+      priceIdLength: priceId?.length || 0,
+      priceIdIsNull: priceId === null,
+      priceIdIsUndefined: priceId === undefined,
+      priceIdIsEmptyString: priceId === '',
+      planProductIdType: typeof planProductId,
+      planProductIdLength: planProductId?.length || 0,
+      planProductIdIsNull: planProductId === null,
+      planProductIdIsUndefined: planProductId === undefined,
+      planProductIdIsEmptyString: planProductId === '',
+    });
+
+    // Validar formato do price_id se existir
+    if (priceId && typeof priceId === 'string') {
+      const priceIdTrimmed = priceId.trim();
+      if (!priceIdTrimmed.startsWith('price_')) {
+        console.error('[Checkout Session] ❌ Price ID com formato inválido:', {
+          priceId: priceIdTrimmed,
+          expectedFormat: 'price_xxxxx',
+        });
+        return new Response(
+          JSON.stringify({ 
+            error: 'Price ID inválido',
+            details: `O Price ID configurado não está no formato correto. Deve começar com "price_". Valor recebido: ${priceIdTrimmed.substring(0, 20)}...`
+          }),
+          { 
+            status: 400, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        );
+      }
+    }
+
+    // Validar formato do product_id do plano se existir
+    if (planProductId && typeof planProductId === 'string') {
+      const productIdTrimmed = planProductId.trim();
+      if (!productIdTrimmed.startsWith('prod_')) {
+        console.error('[Checkout Session] ❌ Product ID do plano com formato inválido:', {
+          productId: productIdTrimmed,
+          expectedFormat: 'prod_xxxxx',
+        });
+        return new Response(
+          JSON.stringify({ 
+            error: 'Product ID inválido',
+            details: `O Product ID configurado no plano não está no formato correto. Deve começar com "prod_". Valor recebido: ${productIdTrimmed.substring(0, 20)}...`
+          }),
+          { 
+            status: 400, 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        );
+      }
+    }
+
+    if (!priceId || (typeof priceId === 'string' && priceId.trim() === '')) {
+      console.error('[Checkout Session] ❌ Plano sem Price ID do Stripe configurado:', {
         planId: plan.id,
         planName: plan.name,
-        hasProductId: !!plan.stripe_product_id,
-        hasPriceId: !!plan.stripe_price_id
+        hasProductId: !!planProductId,
+        hasPriceId: false,
+        priceIdValue: priceId,
       });
       return new Response(
         JSON.stringify({ 
           error: 'Plano não configurado no Stripe',
-          details: 'Este plano não possui Product ID ou Price ID do Stripe configurado. Entre em contato com o suporte.'
+          details: 'Este plano não possui Price ID do Stripe configurado. Configure o stripe_price_id no plano ou entre em contato com o suporte.'
         }),
         { 
           status: 400, 
@@ -141,12 +260,130 @@ serve(async (req) => {
       );
     }
 
-    console.log('[Checkout Session] ✅ Plano validado:', {
+    // Se o plano não tem product_id, tentar usar o default_product_id da configuração
+    let productId = planProductId?.trim() || null;
+    if (!productId) {
+      try {
+        const { data: stripeConfig } = await supabase
+          .from('stripe_config')
+          .select('default_product_id')
+          .eq('is_active', true)
+          .maybeSingle();
+        
+        if (stripeConfig?.default_product_id) {
+          const defaultProductId = stripeConfig.default_product_id.trim();
+          if (defaultProductId.startsWith('prod_')) {
+            productId = defaultProductId;
+            console.log('[Checkout Session] ✅ Usando default_product_id da configuração:', productId);
+          } else {
+            console.warn('[Checkout Session] ⚠️ default_product_id da configuração tem formato inválido:', {
+              defaultProductId: defaultProductId.substring(0, 20) + '...',
+              expectedFormat: 'prod_xxxxx',
+            });
+          }
+        }
+      } catch (error) {
+        console.warn('[Checkout Session] Erro ao buscar default_product_id:', error);
+      }
+    }
+
+    // Log dos IDs que serão usados - ANTES E DEPOIS DO TRIM
+    const finalPriceId = typeof priceId === 'string' ? priceId.trim() : '';
+    console.log('[Checkout Session] ✅ IDs validados e que serão usados no checkout:', {
+      priceId_ANTES_TRIM: priceId,
+      priceId_DEPOIS_TRIM: finalPriceId,
+      priceId_LENGTH: finalPriceId.length,
+      productId: productId || 'NÃO CONFIGURADO (Stripe usará o product do price)',
+      planId: plan.id,
+      planName: plan.name,
+      timestamp: new Date().toISOString(),
+    });
+    
+    // Verificar se o price_id mudou após trim
+    if (typeof priceId === 'string' && priceId !== finalPriceId) {
+      console.warn('[Checkout Session] ⚠️ Price ID tinha espaços e foi trimado:', {
+        original: priceId,
+        trimmed: finalPriceId,
+      });
+    }
+
+    // Garantir que priceId está validado e no formato correto
+    const validatedPriceId = typeof priceId === 'string' ? priceId.trim() : '';
+    
+    console.log('[Checkout Session] 🔍 Validação final do Price ID:', {
+      priceId_DO_BANCO: priceId,
+      priceId_APOS_TRIM: validatedPriceId,
+      priceId_STARTS_WITH_PRICE: validatedPriceId.startsWith('price_'),
+      priceId_LENGTH: validatedPriceId.length,
+      priceId_IS_EMPTY: validatedPriceId === '',
+      priceId_IS_NULL: priceId === null,
+    });
+    
+    if (!validatedPriceId || !validatedPriceId.startsWith('price_')) {
+      console.error('[Checkout Session] ❌ Price ID não passou na validação final:', {
+        priceId_DO_BANCO: priceId,
+        priceId_APOS_TRIM: validatedPriceId,
+        originalPriceId: priceId,
+        priceIdType: typeof priceId,
+        priceIdValue: JSON.stringify(priceId),
+      });
+      return new Response(
+        JSON.stringify({ 
+          error: 'Price ID inválido',
+          details: `O Price ID não está no formato correto. Deve começar com "price_". Valor recebido do banco: ${priceId === null ? 'NULL' : priceId === undefined ? 'UNDEFINED' : priceId === '' ? 'VAZIO' : JSON.stringify(priceId)}`
+        }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
+
+    console.log('[Checkout Session] ✅ Plano validado e pronto para checkout:', {
       planId: plan.id,
       planName: plan.name,
       price: plan.price,
-      hasStripeIds: true
+      priceId_FINAL: validatedPriceId,
+      productId: productId || 'N/A',
+      hasValidPriceId: true,
+      hasProductId: !!productId,
+      timestamp: new Date().toISOString(),
     });
+    
+    // Verificar se o price pertence ao product no Stripe (validação opcional)
+    if (productId) {
+      try {
+        console.log('[Checkout Session] 🔍 Verificando se price pertence ao product no Stripe...');
+        const priceObj = await stripe.prices.retrieve(validatedPriceId);
+        const priceProductId = priceObj.product as string;
+        
+        console.log('[Checkout Session] 📊 Validação Price x Product:', {
+          priceId: validatedPriceId,
+          priceProductId_doStripe: priceProductId,
+          productId_doPlano: productId,
+          products_combinam: priceProductId === productId,
+        });
+        
+        if (priceProductId !== productId) {
+          console.warn('[Checkout Session] ⚠️ AVISO: Price ID não pertence ao Product ID configurado:', {
+            priceId: validatedPriceId,
+            productId_doPrice_noStripe: priceProductId,
+            productId_configurado_noPlano: productId,
+            mensagem: 'O Stripe usará o product do price, não o configurado no plano',
+          });
+        } else {
+          console.log('[Checkout Session] ✅ Price ID pertence ao Product ID configurado');
+        }
+      } catch (priceCheckError: any) {
+        console.error('[Checkout Session] ❌ Erro ao verificar price no Stripe:', {
+          error: priceCheckError?.message,
+          errorType: priceCheckError?.type,
+          priceId: validatedPriceId,
+          warning: 'Continuando mesmo assim - pode ser que o price não exista ou a API falhou',
+        });
+        // Não bloquear o checkout por causa disso, apenas logar
+      }
+    }
 
     // Get user profile
     const { data: profile, error: profileError } = await supabase
@@ -374,26 +611,24 @@ serve(async (req) => {
     // Usar Price ID do Stripe (já validado acima)
     const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [
       {
-        price: plan.stripe_price_id, // Usar o Price ID do banco de dados
+        price: validatedPriceId, // Usar o Price ID validado
         quantity: 1,
       },
     ];
 
-    console.log('[Checkout Session] Line items preparados:', {
-      priceId: plan.stripe_price_id,
+    console.log('[Checkout Session] 📦 Line items preparados para checkout:', {
+      priceId: validatedPriceId,
       planName: plan.name,
-      amount: plan.price
+      planId: plan.id,
+      amount: plan.price,
+      currency: 'BRL',
+      quantity: 1,
     });
 
     // Create Stripe checkout session
     let session;
     try {
-      console.log('[Checkout Session] Criando sessão de checkout no Stripe:', {
-        customerId,
-        planId,
-        lineItemsCount: lineItems.length,
-      });
-      session = await stripe.checkout.sessions.create({
+      const checkoutParams: Stripe.Checkout.SessionCreateParams = {
         customer: customerId,
         payment_method_types: ['card'],
         line_items: lineItems,
@@ -403,11 +638,13 @@ serve(async (req) => {
         metadata: {
           user_id: userId,
           plan_id: planId,
+          plan_name: plan.name,
         },
         subscription_data: {
           metadata: {
             user_id: userId,
             plan_id: planId,
+            plan_name: plan.name,
           },
         },
         billing_address_collection: 'required',
@@ -415,11 +652,86 @@ serve(async (req) => {
           address: 'auto',
           name: 'auto',
         },
-      })
-      console.log('[Checkout Session] Sessão de checkout criada com sucesso:', session.id);
-    } catch (stripeError) {
-      console.error('[Checkout Session] Erro ao criar sessão de checkout no Stripe:', stripeError);
-      throw new Error(`Erro ao criar sessão de checkout: ${stripeError instanceof Error ? stripeError.message : 'Erro desconhecido'}`);
+      };
+
+      console.log('[Checkout Session] 🚀 Criando sessão de checkout no Stripe com parâmetros FINAIS:', {
+        customerId,
+        planId_DO_REQUEST: planId,
+        planId_DO_BANCO: plan.id,
+        planName: plan.name,
+        lineItemsCount: lineItems.length,
+        priceId_FINAL_USADO: validatedPriceId,
+        priceId_DO_BANCO_ORIGINAL: plan.stripe_price_id,
+        productId: productId || 'N/A',
+        mode: 'subscription',
+        successUrl: checkoutParams.success_url,
+        cancelUrl: checkoutParams.cancel_url,
+        timestamp: new Date().toISOString(),
+        lineItems: lineItems.map(item => ({
+          price: item.price,
+          quantity: item.quantity,
+        })),
+      });
+
+      session = await stripe.checkout.sessions.create(checkoutParams);
+      
+      console.log('[Checkout Session] ✅ Sessão de checkout criada com sucesso:', {
+        sessionId: session.id,
+        url: session.url,
+        status: session.status,
+        customerId: session.customer,
+      });
+    } catch (stripeError: any) {
+      console.error('[Checkout Session] ❌ Erro ao criar sessão de checkout no Stripe:', {
+        errorType: stripeError?.type || 'unknown',
+        errorCode: stripeError?.code || 'no_code',
+        errorMessage: stripeError?.message || 'Unknown error',
+        errorDetails: stripeError?.raw || stripeError,
+        priceId: validatedPriceId,
+        productId: productId || 'N/A',
+        planId: plan.id,
+        planName: plan.name,
+        customerId: customerId,
+      });
+
+      // Mapear erros específicos do Stripe para mensagens amigáveis
+      let errorMessage = 'Erro ao criar sessão de checkout';
+      let errorDetails = stripeError?.message || 'Erro desconhecido';
+      
+      if (stripeError?.type === 'StripeInvalidRequestError') {
+        if (stripeError?.code === 'resource_missing') {
+          errorMessage = 'Price ID não encontrado no Stripe';
+          errorDetails = `O Price ID "${validatedPriceId}" não existe na sua conta Stripe. Verifique se o ID está correto e se foi criado no ambiente correto (test/live).`;
+        } else if (stripeError?.code === 'parameter_invalid_empty') {
+          errorMessage = 'Price ID inválido ou vazio';
+          errorDetails = 'O Price ID fornecido está vazio ou é inválido. Verifique a configuração do plano.';
+        } else if (stripeError?.code === 'parameter_invalid_integer') {
+          errorMessage = 'Parâmetro inválido';
+          errorDetails = stripeError.message || 'Um dos parâmetros enviados ao Stripe é inválido.';
+        } else {
+          errorMessage = 'Erro na requisição ao Stripe';
+          errorDetails = stripeError.message || 'A requisição ao Stripe falhou. Verifique os parâmetros.';
+        }
+      } else if (stripeError?.type === 'StripeAPIError') {
+        errorMessage = 'Erro na API do Stripe';
+        errorDetails = stripeError.message || 'Erro ao se comunicar com a API do Stripe.';
+      } else if (stripeError?.type === 'StripeConnectionError') {
+        errorMessage = 'Erro de conexão com Stripe';
+        errorDetails = 'Não foi possível conectar ao Stripe. Verifique sua conexão com a internet.';
+      }
+
+      return new Response(
+        JSON.stringify({ 
+          error: errorMessage,
+          details: errorDetails,
+          stripeErrorCode: stripeError?.code || null,
+          stripeErrorType: stripeError?.type || null,
+        }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
     }
 
     // Log the checkout session creation (removed RPC call as log_audit_event doesn't exist)
@@ -443,15 +755,24 @@ serve(async (req) => {
     )
 
   } catch (error) {
-    console.error('[Checkout Session] ❌ Erro ao criar checkout session:', {
+    console.error('[Checkout Session] ❌ Erro não tratado ao criar checkout session:', {
       error: error instanceof Error ? error.message : String(error),
       stack: error instanceof Error ? error.stack : undefined,
       name: error instanceof Error ? error.name : typeof error,
+      errorType: typeof error,
+      errorString: String(error),
     });
+    
+    // Se já foi retornado uma resposta com erro específico do Stripe, não retornar outro
+    if (error instanceof Response) {
+      return error;
+    }
+    
     return new Response(
       JSON.stringify({ 
         error: 'Erro interno do servidor ao processar checkout',
-        details: error instanceof Error ? error.message : 'Erro desconhecido'
+        details: error instanceof Error ? error.message : 'Erro desconhecido',
+        errorType: error instanceof Error ? error.name : typeof error,
       }),
       { 
         status: 500, 

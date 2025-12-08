@@ -14,9 +14,41 @@ serve(async (req) => {
   }
 
   try {
-    // Get webhook secret from environment (webhooks são chamados pelo Stripe, não pelo frontend)
-    const stripeSecretKey = Deno.env.get('STRIPE_SECRET_KEY') || ''
-    const webhookSecret = Deno.env.get('STRIPE_WEBHOOK_SECRET')
+    // Initialize Supabase client first to get config
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+
+    // Get Stripe secret key and webhook secret from Supabase (stripe_config table)
+    // Fallback to Deno.env for backward compatibility
+    let stripeSecretKey = '';
+    let webhookSecret = '';
+
+    try {
+      // Try to get active Stripe config from Supabase
+      const { data: stripeConfig, error: configError } = await supabase
+        .from('stripe_config')
+        .select('secret_key, webhook_secret')
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (!configError && stripeConfig) {
+        stripeSecretKey = stripeConfig.secret_key || '';
+        webhookSecret = stripeConfig.webhook_secret || '';
+        console.log('[Webhooks] Usando configurações do Supabase (stripe_config)');
+      } else {
+        // Fallback to Deno.env
+        stripeSecretKey = Deno.env.get('STRIPE_SECRET_KEY') || '';
+        webhookSecret = Deno.env.get('STRIPE_WEBHOOK_SECRET') || '';
+        if (stripeSecretKey) {
+          console.warn('[Webhooks] Usando configurações do fallback (Deno.env)');
+        }
+      }
+    } catch (error) {
+      console.warn('[Webhooks] Erro ao buscar config do Supabase, usando fallback:', error);
+      stripeSecretKey = Deno.env.get('STRIPE_SECRET_KEY') || '';
+      webhookSecret = Deno.env.get('STRIPE_WEBHOOK_SECRET') || '';
+    }
 
     if (!stripeSecretKey) {
       console.error('STRIPE_SECRET_KEY not configured')

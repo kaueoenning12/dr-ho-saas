@@ -18,6 +18,8 @@ import { CreateUserDialog } from "@/components/admin/CreateUserDialog";
 import { UserActionsDropdown } from "@/components/admin/UserActionsDropdown";
 import { PlanManagementDialog } from "@/components/admin/PlanManagementDialog";
 import { PlanActionsDropdown } from "@/components/admin/PlanActionsDropdown";
+import { StripeConfigDialog } from "@/components/admin/StripeConfigDialog";
+import { useStripeConfigs } from "@/hooks/useStripeConfig";
 import { DocumentActionsDropdown } from "@/components/admin/DocumentActionsDropdown";
 import { HomeAnnouncementDialog } from "@/components/admin/HomeAnnouncementDialog";
 import { EventDialog } from "@/components/admin/EventDialog";
@@ -44,6 +46,7 @@ export default function Admin() {
   const { data: documents = [], isLoading: documentsLoading, refetch: refetchDocuments } = useDocuments();
   const { data: users = [], isLoading: usersLoading, refetch: refetchUsers } = useUsers();
   const { data: plans = [], isLoading: plansLoading, refetch: refetchPlans } = useSubscriptionPlans();
+  const { data: stripeConfigs = [], isLoading: stripeConfigsLoading, refetch: refetchStripeConfigs } = useStripeConfigs();
   const { data: ratings = [], isLoading: ratingsLoading } = useRatings();
   const { data: documentStats } = useDocumentStats();
   const { data: userStats } = useUserStats();
@@ -121,11 +124,12 @@ export default function Admin() {
 
           <div className="px-3 sm:px-6 py-4 sm:py-8">
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-              <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-7 gap-1 mb-6 h-auto p-1">
+              <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-8 gap-1 mb-6 h-auto p-1">
                 <TabsTrigger value="stats" className="text-xs sm:text-sm px-2 sm:px-3 transition-all duration-200 hover:scale-105 active:scale-95">Estatísticas</TabsTrigger>
                 <TabsTrigger value="documents" className="text-xs sm:text-sm px-2 sm:px-3 transition-all duration-200 hover:scale-105 active:scale-95">Relatórios</TabsTrigger>
                 <TabsTrigger value="users" className="text-xs sm:text-sm px-2 sm:px-3 transition-all duration-200 hover:scale-105 active:scale-95">Usuários</TabsTrigger>
                 <TabsTrigger value="plans" className="text-xs sm:text-sm px-2 sm:px-3 transition-all duration-200 hover:scale-105 active:scale-95">Planos</TabsTrigger>
+                <TabsTrigger value="stripe-config" className="text-xs sm:text-sm px-2 sm:px-3 transition-all duration-200 hover:scale-105 active:scale-95">Config. Stripe</TabsTrigger>
                 <TabsTrigger value="ratings" className="text-xs sm:text-sm px-2 sm:px-3 transition-all duration-200 hover:scale-105 active:scale-95">Avaliações</TabsTrigger>
                 <TabsTrigger value="home" className="text-xs sm:text-sm px-2 sm:px-3 transition-all duration-200 hover:scale-105 active:scale-95">Home</TabsTrigger>
                 <TabsTrigger value="notifications" className="text-xs sm:text-sm px-2 sm:px-3 transition-all duration-200 hover:scale-105 active:scale-95">Notificações</TabsTrigger>
@@ -378,6 +382,8 @@ export default function Admin() {
                             <TableRow>
                               <TableHead>Plano</TableHead>
                               <TableHead>Preço</TableHead>
+                              <TableHead className="hidden lg:table-cell">Product ID</TableHead>
+                              <TableHead className="hidden lg:table-cell">Price ID</TableHead>
                               <TableHead>Status</TableHead>
                               <TableHead className="hidden md:table-cell">Criado em</TableHead>
                               <TableHead className="w-[120px]">Ações</TableHead>
@@ -394,6 +400,24 @@ export default function Admin() {
                                 </TableCell>
                                 <TableCell>
                                   <span className="font-semibold text-navy">R$ {plan.price.toFixed(2)}</span>
+                                </TableCell>
+                                <TableCell className="hidden lg:table-cell">
+                                  {plan.stripe_product_id ? (
+                                    <span className="text-xs font-mono text-cyan bg-cyan/10 px-2 py-1 rounded">
+                                      {plan.stripe_product_id}
+                                    </span>
+                                  ) : (
+                                    <span className="text-xs text-muted-foreground italic">Não configurado</span>
+                                  )}
+                                </TableCell>
+                                <TableCell className="hidden lg:table-cell">
+                                  {plan.stripe_price_id ? (
+                                    <span className="text-xs font-mono text-cyan bg-cyan/10 px-2 py-1 rounded">
+                                      {plan.stripe_price_id}
+                                    </span>
+                                  ) : (
+                                    <span className="text-xs text-muted-foreground italic">Não configurado</span>
+                                  )}
                                 </TableCell>
                                 <TableCell>
                                   <Badge variant="outline" className={plan.is_active ? 'bg-green-500/10 text-green-600 border-green-500/30' : 'bg-red-500/10 text-red-600 border-red-500/30'}>
@@ -421,6 +445,97 @@ export default function Admin() {
                         </Table>
                         {plans.length === 0 && (
                           <p className="text-center text-muted-foreground py-10">Nenhum plano cadastrado</p>
+                        )}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </TabsContent>
+
+              {/* Tab: Configurações Stripe */}
+              <TabsContent value="stripe-config" className="mt-0">
+                <Card className="border border-cyan/10 shadow-elegant">
+                  <CardHeader className="px-4 sm:px-6 py-4 border-b border-cyan/10">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                      <div>
+                        <CardTitle className="text-[16px] sm:text-[18px] font-semibold text-navy">
+                          Configurações Stripe
+                        </CardTitle>
+                        <CardDescription className="text-[13px] sm:text-[14px] font-light mt-1 text-navy/60">
+                          Gerencie as chaves e configurações do Stripe (test e live)
+                        </CardDescription>
+                      </div>
+                      <StripeConfigDialog onSuccess={() => refetchStripeConfigs()} />
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    {stripeConfigsLoading ? (
+                      <div className="text-center py-10">
+                        <div className="inline-block h-6 w-6 animate-spin rounded-full border-3 border-solid border-cyan border-r-transparent"></div>
+                        <p className="text-muted-foreground text-sm mt-2">Carregando configurações...</p>
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <Table className="min-w-full">
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="min-w-[100px]">Ambiente</TableHead>
+                              <TableHead className="min-w-[200px]">Chave Pública</TableHead>
+                              <TableHead className="min-w-[200px]">Chave Secreta</TableHead>
+                              <TableHead className="min-w-[150px]">Product ID</TableHead>
+                              <TableHead className="min-w-[100px]">Status</TableHead>
+                              <TableHead className="min-w-[120px] hidden md:table-cell">Atualizado em</TableHead>
+                              <TableHead className="w-[100px]">Ações</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {stripeConfigs.map((config) => (
+                              <TableRow key={config.id} className="hover:bg-cyan/5">
+                                <TableCell className="font-medium">
+                                  <Badge variant={config.environment === 'live' ? 'destructive' : 'secondary'}>
+                                    {config.environment === 'live' ? 'Live' : 'Test'}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell>
+                                  <span className="text-sm font-mono text-muted-foreground">
+                                    {config.publishable_key.substring(0, 20)}...
+                                  </span>
+                                </TableCell>
+                                <TableCell>
+                                  <span className="text-sm font-mono text-muted-foreground">
+                                    {config.secret_key.substring(0, 20)}...
+                                  </span>
+                                </TableCell>
+                                <TableCell>
+                                  <span className="text-sm font-mono text-muted-foreground">
+                                    {config.default_product_id || '-'}
+                                  </span>
+                                </TableCell>
+                                <TableCell>
+                                  <Badge variant={config.is_active ? 'default' : 'outline'}>
+                                    {config.is_active ? 'Ativo' : 'Inativo'}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="hidden md:table-cell">
+                                  <span className="text-sm text-muted-foreground">
+                                    {new Date(config.updated_at).toLocaleDateString('pt-BR')}
+                                  </span>
+                                </TableCell>
+                                <TableCell>
+                                  <StripeConfigDialog 
+                                    config={config} 
+                                    onSuccess={() => refetchStripeConfigs()} 
+                                  />
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                        {stripeConfigs.length === 0 && (
+                          <div className="text-center py-10">
+                            <p className="text-muted-foreground mb-4">Nenhuma configuração cadastrada</p>
+                            <StripeConfigDialog onSuccess={() => refetchStripeConfigs()} />
+                          </div>
                         )}
                       </div>
                     )}

@@ -18,13 +18,40 @@ serve(async (req) => {
     const body = await req.json()
     const { userId, returnUrl, _stripeSecretKey, _siteUrl } = body
 
-    // Use Stripe secret key from request body (from .env.local) or fallback to Deno.env
-    const stripeSecretKey = _stripeSecretKey || Deno.env.get('STRIPE_SECRET_KEY') || ''
-    const siteUrl = _siteUrl || Deno.env.get('SITE_URL') || 'http://localhost:8080'
+    // Get Stripe secret key from Supabase (stripe_config table)
+    // Fallback to request body or Deno.env for backward compatibility
+    let stripeSecretKey = '';
+    let siteUrl = _siteUrl || Deno.env.get('SITE_URL') || 'http://localhost:8080';
+
+    try {
+      // Try to get active Stripe config from Supabase
+      const { data: stripeConfig, error: configError } = await supabase
+        .from('stripe_config')
+        .select('secret_key')
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (!configError && stripeConfig?.secret_key) {
+        stripeSecretKey = stripeConfig.secret_key;
+        console.log('[Customer Portal] Usando secret_key do Supabase (stripe_config)');
+      } else {
+        // Fallback to request body or Deno.env
+        stripeSecretKey = _stripeSecretKey || Deno.env.get('STRIPE_SECRET_KEY') || '';
+        if (stripeSecretKey) {
+          console.warn('[Customer Portal] Usando secret_key do fallback (.env ou request body)');
+        }
+      }
+    } catch (error) {
+      console.warn('[Customer Portal] Erro ao buscar config do Supabase, usando fallback:', error);
+      stripeSecretKey = _stripeSecretKey || Deno.env.get('STRIPE_SECRET_KEY') || '';
+    }
 
     if (!stripeSecretKey) {
       return new Response(
-        JSON.stringify({ error: 'Stripe secret key not configured' }),
+        JSON.stringify({ 
+          error: 'Stripe secret key not configured',
+          details: 'Configure a secret_key na tabela stripe_config do Supabase ou use variável de ambiente STRIPE_SECRET_KEY'
+        }),
         { 
           status: 500, 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' } 

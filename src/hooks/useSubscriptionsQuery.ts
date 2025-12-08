@@ -11,13 +11,34 @@ export function useSubscriptionPlans() {
   return useQuery({
     queryKey: ["subscription-plans"],
     queryFn: async () => {
+      console.log("🔍 [SUBSCRIPTIONS] Buscando planos ativos...");
       const { data, error } = await supabase
         .from("subscription_plans")
         .select("*")
         .eq("is_active", true)
         .order("price", { ascending: true });
 
-      if (error) throw error;
+      if (error) {
+        console.error("❌ [SUBSCRIPTIONS] Erro ao buscar planos:", error);
+        throw error;
+      }
+
+      // Log dos dados retornados para debug
+      if (data && data.length > 0) {
+        console.log(`✅ [SUBSCRIPTIONS] ${data.length} plano(s) encontrado(s):`, 
+          data.map(plan => ({
+            id: plan.id,
+            name: plan.name,
+            price: plan.price,
+            stripe_product_id: plan.stripe_product_id || "não configurado",
+            stripe_price_id: plan.stripe_price_id || "não configurado",
+            is_active: plan.is_active
+          }))
+        );
+      } else {
+        console.warn("⚠️ [SUBSCRIPTIONS] Nenhum plano ativo encontrado");
+      }
+
       return (data || []) as SubscriptionPlan[];
     },
   });

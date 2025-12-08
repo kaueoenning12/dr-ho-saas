@@ -29,11 +29,45 @@ serve(async (req) => {
       )
     }
 
-    // Get Stripe secret key
-    const stripeSecretKey = _stripeSecretKey || Deno.env.get('STRIPE_SECRET_KEY') || ''
+
+    // Initialize Supabase client
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+
+    // Get Stripe secret key from Supabase (stripe_config table)
+    // Fallback to request body or Deno.env for backward compatibility
+    let stripeSecretKey = '';
+
+    try {
+      // Try to get active Stripe config from Supabase
+      const { data: stripeConfig, error: configError } = await supabase
+        .from('stripe_config')
+        .select('secret_key')
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (!configError && stripeConfig?.secret_key) {
+        stripeSecretKey = stripeConfig.secret_key;
+        console.log('[Update Subscription Plan] Usando secret_key do Supabase (stripe_config)');
+      } else {
+        // Fallback to request body or Deno.env
+        stripeSecretKey = _stripeSecretKey || Deno.env.get('STRIPE_SECRET_KEY') || '';
+        if (stripeSecretKey) {
+          console.warn('[Update Subscription Plan] Usando secret_key do fallback (.env ou request body)');
+        }
+      }
+    } catch (error) {
+      console.warn('[Update Subscription Plan] Erro ao buscar config do Supabase, usando fallback:', error);
+      stripeSecretKey = _stripeSecretKey || Deno.env.get('STRIPE_SECRET_KEY') || '';
+    }
+
     if (!stripeSecretKey) {
       return new Response(
-        JSON.stringify({ error: 'Stripe secret key not configured' }),
+        JSON.stringify({ 
+          error: 'Stripe secret key not configured',
+          details: 'Configure a secret_key na tabela stripe_config do Supabase ou use variável de ambiente STRIPE_SECRET_KEY'
+        }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
@@ -42,11 +76,6 @@ serve(async (req) => {
     const stripe = new Stripe(stripeSecretKey, {
       apiVersion: '2024-12-18.acacia',
     })
-
-    // Initialize Supabase client
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
     console.log('[Update Subscription Plan] Fetching session from Stripe:', sessionId)
 

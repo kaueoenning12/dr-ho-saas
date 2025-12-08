@@ -79,7 +79,7 @@ export default function Login() {
                 placeholder="seu@email.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="h-10 sm:h-11 text-sm sm:text-[15px] font-normal bg-background border-border rounded-lg focus-visible:ring-2 focus-visible:ring-accent transition-all"
+                className="h-10 sm:h-11 text-sm sm:text-[15px] font-normal bg-background border-border rounded-xl focus-visible:ring-2 focus-visible:ring-accent transition-all"
                 required
                 disabled={loading}
               />
@@ -95,7 +95,7 @@ export default function Login() {
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="h-10 sm:h-11 pr-10 text-sm sm:text-[15px] font-normal bg-background border-border rounded-lg focus-visible:ring-2 focus-visible:ring-accent transition-all"
+                  className="h-10 sm:h-11 pr-10 text-sm sm:text-[15px] font-normal bg-background border-border rounded-xl focus-visible:ring-2 focus-visible:ring-accent transition-all"
                   required
                   disabled={loading}
                 />
@@ -111,7 +111,7 @@ export default function Login() {
             </div>
             <Button
               type="submit"
-              className="w-full h-10 sm:h-11 bg-accent text-accent-foreground hover:opacity-90 font-semibold text-sm sm:text-[15px] rounded-lg shadow-cyan transition-all duration-200 active:scale-[0.98]"
+              className="w-full h-10 sm:h-11 bg-accent text-accent-foreground hover:opacity-90 font-semibold text-sm sm:text-[15px] rounded-xl shadow-cyan transition-all duration-200 active:scale-[0.98]"
               disabled={loading}
             >
               {loading ? "Entrando..." : "Entrar"}

@@ -68,6 +68,13 @@ export function CardNavigation({
     return () => window.removeEventListener("scroll", handleScroll);
   }, [showOnScroll, scrollThreshold, lastScrollY]);
 
+  // Reset isOpen when component becomes invisible
+  useEffect(() => {
+    if (!isVisible) {
+      setIsOpen(false);
+    }
+  }, [isVisible]);
+
   // Close on route change
   useEffect(() => {
     setIsOpen(false);
@@ -101,43 +108,48 @@ export function CardNavigation({
     >
       <div
         className={cn(
-          "block h-[60px] p-0 bg-background/95 backdrop-blur-md border border-border rounded-xl shadow-lg relative transition-[height] duration-300 ease-out",
-          isOpen && "h-auto min-h-[60px] max-h-[calc(100vh-48px)] overflow-hidden"
+          "block h-[60px] p-0 bg-background/95 backdrop-blur-md border border-border rounded-xl shadow-lg relative transition-[height] duration-300 ease-out overflow-visible",
+          isOpen && "h-auto min-h-[60px] max-h-[calc(100vh-48px)] shadow-xl"
         )}
       >
         {/* Top bar */}
-        <div className="absolute top-0 left-0 right-0 h-[60px] flex items-center justify-between px-3 sm:px-[1.1rem] py-2 z-10">
+        <div className="absolute top-0 left-0 right-0 h-[60px] flex items-center justify-between px-3 sm:px-[1.1rem] py-2 z-20 bg-background/95 backdrop-blur-md rounded-t-xl">
           {/* Hamburger menu */}
           <button
-            onClick={() => setIsOpen(!isOpen)}
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsOpen(!isOpen);
+            }}
+            type="button"
             className={cn(
-              "h-full flex flex-col items-center justify-center cursor-pointer gap-1.5 p-2 rounded-lg hover:bg-muted/50 transition-all duration-200 order-2 sm:order-1",
+              "h-full flex flex-col items-center justify-center cursor-pointer gap-1.5 p-2 rounded-xl hover:bg-muted/50 transition-all duration-200 order-2 sm:order-1 relative z-30",
               isOpen && "open"
             )}
             aria-label="Toggle navigation menu"
+            aria-expanded={isOpen}
           >
             <span
               className={cn(
                 "w-[30px] h-0.5 bg-foreground transition-all duration-300 origin-center",
-                isOpen && "translate-y-[8px] rotate-45"
+                isOpen ? "translate-y-[8px] rotate-45" : "translate-y-0 rotate-0"
               )}
             />
             <span
               className={cn(
                 "w-[30px] h-0.5 bg-foreground transition-all duration-300 origin-center",
-                isOpen && "opacity-0"
+                isOpen ? "opacity-0 scale-0" : "opacity-100 scale-100"
               )}
             />
             <span
               className={cn(
                 "w-[30px] h-0.5 bg-foreground transition-all duration-300 origin-center",
-                isOpen && "-translate-y-[8px] -rotate-45"
+                isOpen ? "-translate-y-[8px] -rotate-45" : "translate-y-0 rotate-0"
               )}
             />
           </button>
 
           {/* Logo */}
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center drop-shadow-sm order-1 sm:order-none">
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center drop-shadow-sm order-1 sm:order-none pointer-events-none z-20">
             <img
               src={logoSrc}
               alt="Dr. HO Logo"
@@ -148,8 +160,12 @@ export function CardNavigation({
           {/* CTA Button */}
           {ctaButton && (
             <button
-              onClick={ctaButton.onClick}
-              className="hidden sm:flex bg-foreground text-background border-none rounded-[calc(0.75rem-0.35rem)] px-4 h-full font-medium cursor-pointer transition-colors hover:bg-foreground/90 items-center"
+              onClick={(e) => {
+                e.stopPropagation();
+                ctaButton.onClick();
+              }}
+              type="button"
+              className="hidden sm:flex bg-foreground text-background border-none rounded-[calc(0.75rem-0.35rem)] px-4 h-full font-medium cursor-pointer transition-colors hover:bg-foreground/90 items-center relative z-20"
             >
               {ctaButton.label}
             </button>
@@ -159,7 +175,7 @@ export function CardNavigation({
         {/* Navigation content */}
         <div
           className={cn(
-            "absolute left-0 right-0 top-[60px] p-2 flex flex-col sm:flex-row items-stretch sm:items-start gap-2 sm:gap-3 transition-[opacity,visibility,max-height] duration-300 ease-out",
+            "absolute left-0 right-0 top-[60px] p-2 flex flex-col sm:flex-row items-stretch sm:items-start gap-2 sm:gap-3 transition-all duration-300 ease-out bg-background/95 backdrop-blur-md rounded-b-xl border-t border-border/20 z-10",
             isOpen
               ? "visible opacity-100 pointer-events-auto max-h-[calc(100vh-120px)] sm:max-h-[calc(100vh-140px)] overflow-y-auto"
               : "invisible opacity-0 pointer-events-none max-h-0 overflow-hidden"

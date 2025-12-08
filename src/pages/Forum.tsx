@@ -79,7 +79,7 @@ export default function Forum() {
                   <Search className="absolute left-2.5 sm:left-3 top-1/2 -translate-y-1/2 h-3.5 sm:h-4 w-3.5 sm:w-4 text-cyan stroke-[2] transition-all duration-300 group-focus-within/search:scale-110" />
                   <Input
                     placeholder="Buscar discussões..."
-                    className="pl-8 sm:pl-10 pr-8 sm:pr-10 h-9 sm:h-10 w-full text-xs sm:text-sm font-normal border-cyan/20 rounded-lg input-glow shadow-sm transition-all duration-300 bg-background hover:bg-muted/40 dark:hover:bg-muted/60 hover:border-cyan/40 hover:scale-[1.01]"
+                    className="pl-8 sm:pl-10 pr-8 sm:pr-10 h-9 sm:h-10 w-full text-xs sm:text-sm font-normal border-cyan/20 rounded-xl input-glow shadow-sm transition-all duration-300 bg-background hover:bg-muted/40 dark:hover:bg-muted/60 hover:border-cyan/40 hover:scale-[1.01]"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                   />
@@ -111,7 +111,7 @@ export default function Forum() {
                 variant={selectedCategory === "all" ? "default" : "ghost"}
                 size="sm"
                 onClick={() => setSelectedCategory("all")}
-                className={`group whitespace-nowrap rounded-lg font-medium text-xs sm:text-sm px-3 sm:px-4 py-2 min-h-[44px] transition-all duration-300 hover:scale-105 active:scale-95 animate-fade-in ${
+                className={`group whitespace-nowrap rounded-xl font-medium text-xs sm:text-sm px-3 sm:px-4 py-2 min-h-[44px] transition-all duration-300 hover:scale-105 active:scale-95 animate-fade-in ${
                   selectedCategory === "all"
                     ? "bg-cyan/15 text-cyan hover:bg-cyan/25 shadow-sm border-b-2 border-cyan"
                     : "text-foreground/70 hover:text-foreground hover:bg-muted"
@@ -132,7 +132,7 @@ export default function Forum() {
                   variant={selectedCategory === category.id ? "default" : "ghost"}
                   size="sm"
                   onClick={() => setSelectedCategory(category.id)}
-                  className={`group whitespace-nowrap rounded-lg font-medium text-xs sm:text-sm px-3 sm:px-4 py-2 min-h-[44px] transition-all duration-300 hover:scale-105 active:scale-95 animate-fade-in ${
+                  className={`group whitespace-nowrap rounded-xl font-medium text-xs sm:text-sm px-3 sm:px-4 py-2 min-h-[44px] transition-all duration-300 hover:scale-105 active:scale-95 animate-fade-in ${
                     selectedCategory === category.id
                       ? "bg-cyan/15 text-cyan hover:bg-cyan/25 shadow-sm border-b-2 border-cyan"
                     : "text-foreground/70 hover:text-foreground hover:bg-muted"
@@ -198,8 +198,8 @@ export default function Forum() {
                           </div>
                         </div>
                         <div className="hidden sm:block space-y-2">
-                          <div className="h-16 w-20 bg-muted rounded-lg" />
-                          <div className="h-16 w-20 bg-muted rounded-lg" />
+                          <div className="h-16 w-20 bg-muted rounded-xl" />
+                          <div className="h-16 w-20 bg-muted rounded-xl" />
                         </div>
                       </div>
                     </CardContent>
@@ -232,7 +232,7 @@ export default function Forum() {
                     >
                       {/* Borda esquerda para tópicos pinned */}
                       {topic.is_pinned && (
-                        <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-cyan to-aqua rounded-l-lg" />
+                        <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-cyan to-aqua rounded-l-xl" />
                       )}
 
                       {/* Badges de Status */}
@@ -299,7 +299,7 @@ export default function Forum() {
                           {/* Stats Coluna Direita */}
                           <div className="hidden sm:flex flex-col items-center gap-3 shrink-0 min-w-[80px]">
                             {/* Views */}
-                            <div className="flex flex-col items-center gap-1 p-2 rounded-lg bg-muted group-hover:bg-cyan/10 transition-all duration-300 min-w-[70px]">
+                            <div className="flex flex-col items-center gap-1 p-2 rounded-xl bg-muted group-hover:bg-cyan/10 transition-all duration-300 min-w-[70px]">
                               <div className="flex items-center gap-1 text-foreground group-hover:text-cyan transition-colors">
                                 <TrendingUp className="h-3.5 w-3.5" />
                                 <span className="font-semibold text-sm">{topic.views}</span>
@@ -308,7 +308,7 @@ export default function Forum() {
                             </div>
 
                             {/* Respostas (placeholder - será implementado) */}
-                            <div className="flex flex-col items-center gap-1 p-2 rounded-lg bg-muted group-hover:bg-cyan/10 transition-all duration-300 min-w-[70px]">
+                            <div className="flex flex-col items-center gap-1 p-2 rounded-xl bg-muted group-hover:bg-cyan/10 transition-all duration-300 min-w-[70px]">
                               <div className="flex items-center gap-1 text-foreground group-hover:text-cyan transition-colors">
                                 <MessageSquare className="h-3.5 w-3.5" />
                                 <span className="font-semibold text-sm">0</span>

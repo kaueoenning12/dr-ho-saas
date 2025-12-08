@@ -52,7 +52,7 @@ export function MobileSidebar() {
         <Button
           variant="ghost"
           size="icon"
-          className="md:hidden h-9 w-9 sm:h-10 sm:w-10 rounded-lg hover:bg-muted transition-all duration-300 hover:scale-110 active:scale-95"
+          className="md:hidden h-9 w-9 sm:h-10 sm:w-10 rounded-xl hover:bg-muted transition-all duration-300 hover:scale-110 active:scale-95"
         >
           <Menu className="h-4 w-4 sm:h-5 sm:w-5 text-foreground stroke-[1.5] transition-transform duration-300" />
           <span className="sr-only">Toggle menu</span>
@@ -92,7 +92,7 @@ export function MobileSidebar() {
                   }
                 }}
                 className={({ isActive }) =>
-                  `group flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium text-[14px] transition-all duration-300 min-h-[44px] animate-slide-in-left stagger-${index + 1} ${
+                  `group flex items-center gap-3 px-3 py-2.5 rounded-xl font-medium text-[14px] transition-all duration-300 min-h-[44px] animate-slide-in-left stagger-${index + 1} ${
                     isActive
                       ? "bg-cyan/15 text-cyan shadow-sm border-l-2 border-cyan"
                       : "text-foreground/70 hover:text-foreground hover:bg-muted hover:translate-x-1"
@@ -107,7 +107,7 @@ export function MobileSidebar() {
         </div>
 
         <SheetFooter className="border-t border-cyan/10 p-4 mt-auto block animate-fade-in-up stagger-6">
-          <div className="flex items-center gap-3 mb-3 px-1 transition-all duration-300 hover:bg-muted rounded-lg p-2 -ml-2 -mr-2">
+          <div className="flex items-center gap-3 mb-3 px-1 transition-all duration-300 hover:bg-muted rounded-xl p-2 -ml-2 -mr-2">
             <NotificationBell />
             <div className="flex-1 min-w-0">
               <p className="font-medium text-[14px] text-foreground truncate">{user?.name}</p>
@@ -117,7 +117,7 @@ export function MobileSidebar() {
           <Button
             variant="ghost"
             onClick={handleLogout}
-            className="group w-full justify-start text-foreground/80 hover:text-foreground hover:bg-muted font-medium text-[14px] rounded-lg transition-all duration-300 min-h-[44px] hover:translate-x-1 active:scale-95"
+            className="group w-full justify-start text-foreground/80 hover:text-foreground hover:bg-muted font-medium text-[14px] rounded-xl transition-all duration-300 min-h-[44px] hover:translate-x-1 active:scale-95"
           >
             <LogOut className="h-4 w-4 stroke-[1.5] mr-2 transition-transform duration-300 group-hover:rotate-12" />
             <span>Sair</span>

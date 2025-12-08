@@ -56,7 +56,7 @@
     --input: 229 30% 90%;
     --ring: 193 75% 61%;              /* Cyan ring */
 
-    --radius: 0.75rem;
+    --radius: 1rem;
 
     /* Branded Sidebar - Navy Deep */
     --sidebar-background: 229 82% 16%;      /* Navy Deep */
@@ -101,6 +101,8 @@
     --input: 0 0% 18%;
     --ring: 193 75% 61%;
 
+    --radius: 1rem;
+
     --sidebar-background: 0 0% 8%;   /* Neutral near-black */
     --sidebar-foreground: 0 0% 98%;
     --sidebar-primary: 193 75% 61%;
@@ -142,6 +144,8 @@
     --border: 0 0% 10%;
     --input: 0 0% 10%;
     --ring: 193 75% 61%;
+
+    --radius: 1rem;
 
     --sidebar-background: 0 0% 2%;   /* Almost black */
     --sidebar-foreground: 0 0% 98%;
@@ -207,28 +211,28 @@
 
   /* Smooth transitions */
   .transition-smooth {
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   .transition-fast {
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   /* Modern shadows with brand colors */
   .shadow-elegant {
-    box-shadow: 0 1px 3px 0 hsl(229 82% 16% / 0.05), 0 1px 2px -1px hsl(229 82% 16% / 0.05);
+    box-shadow: 0 1px 3px 0 hsl(229 82% 16% / 0.04), 0 1px 2px -1px hsl(229 82% 16% / 0.04);
   }
 
   .shadow-elegant-lg {
-    box-shadow: 0 10px 25px -5px hsl(229 82% 16% / 0.08), 0 8px 10px -6px hsl(229 82% 16% / 0.08);
+    box-shadow: 0 10px 25px -5px hsl(229 82% 16% / 0.06), 0 8px 10px -6px hsl(229 82% 16% / 0.06);
   }
 
   .shadow-cyan {
-    box-shadow: 0 4px 14px 0 hsl(193 75% 61% / 0.15);
+    box-shadow: 0 4px 14px 0 hsl(193 75% 61% / 0.12);
   }
 
   .shadow-aqua {
-    box-shadow: 0 4px 14px 0 hsl(166 77% 69% / 0.15);
+    box-shadow: 0 4px 14px 0 hsl(166 77% 69% / 0.12);
   }
 
   /* Brand Gradients */
@@ -580,17 +584,17 @@
 
 /* Interactive Utility Classes */
 .hover-lift {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .hover-lift:hover {
   transform: translateY(-4px) scale(1.01);
-  box-shadow: 0 12px 30px -8px hsl(229 82% 16% / 0.15);
+  box-shadow: 0 12px 30px -8px hsl(229 82% 16% / 0.12);
 }
 
 .hover-glow {
   position: relative;
-  transition: all 0.3s ease;
+  transition: all 0.35s ease;
 }
 
 .hover-glow::before {
@@ -600,18 +604,18 @@
   border-radius: inherit;
   background: linear-gradient(135deg, hsl(193 75% 61%), hsl(166 77% 69%));
   opacity: 0;
-  transition: opacity 0.3s ease;
+  transition: opacity 0.35s ease;
   z-index: -1;
   filter: blur(8px);
 }
 
 .hover-glow:hover::before {
-  opacity: 0.6;
+  opacity: 0.5;
 }
 
 .interactive {
   cursor: pointer;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   user-select: none;
 }
 

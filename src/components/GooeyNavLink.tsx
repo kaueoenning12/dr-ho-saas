@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { LucideIcon } from 'lucide-react';
 import { useTheme } from 'next-themes';
 
@@ -33,6 +33,7 @@ export function GooeyNavLink({
   const textRef = useRef<HTMLSpanElement>(null);
   const [isActive, setIsActive] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
   const { resolvedTheme } = useTheme();
 
   const noise = (n = 1) => n / 2 - Math.random() * n;
@@ -131,6 +132,29 @@ export function GooeyNavLink({
     e.preventDefault();
     if (isActive) return;
     
+    // Verificar se já está na mesma rota
+    if (location.pathname === href) {
+      // Limpar efeitos visuais se existirem
+      if (filterRef.current) {
+        filterRef.current.classList.remove('active');
+        const particles = filterRef.current.querySelectorAll('.particle');
+        particles.forEach(p => {
+          try {
+            filterRef.current?.removeChild(p);
+          } catch {
+            // Ignore errors
+          }
+        });
+      }
+      if (textRef.current) {
+        textRef.current.classList.remove('active');
+        textRef.current.innerText = '';
+      }
+      // Apenas fechar o menu, sem animação
+      onClick?.();
+      return;
+    }
+    
     setIsActive(true);
     const liEl = containerRef.current;
     if (liEl) {
@@ -180,6 +204,26 @@ export function GooeyNavLink({
     resizeObserver.observe(containerRef.current);
     return () => resizeObserver.disconnect();
   }, [isActive]);
+
+  // Limpar efeitos visuais quando a rota mudar ou não estiver mais ativo
+  useEffect(() => {
+    if (!isActive && filterRef.current && textRef.current) {
+      // Limpar efeitos quando não está mais ativo
+      filterRef.current.classList.remove('active');
+      textRef.current.classList.remove('active');
+      textRef.current.innerText = '';
+      
+      // Remover partículas pendentes
+      const particles = filterRef.current.querySelectorAll('.particle');
+      particles.forEach(p => {
+        try {
+          filterRef.current?.removeChild(p);
+        } catch {
+          // Ignore errors
+        }
+      });
+    }
+  }, [isActive, location.pathname]);
 
   const isDark = resolvedTheme === 'dark' || resolvedTheme === 'black';
   

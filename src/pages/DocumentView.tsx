@@ -297,25 +297,14 @@ function DocumentViewContent() {
     {
       label: "Navegação",
       links: [
-        { label: "Relatórios", href: "/", icon: Home },
+        { label: "Home", href: "/", icon: Home },
+        { label: "Relatórios", href: "/documents", icon: FileText },
         { label: "Fórum", href: "/forum", icon: MessageSquare },
         { label: "WhatsApp", href: "/whatsapp-community", icon: MessageCircle },
         { label: "Avisos", href: "/announcements", icon: Megaphone },
         { label: "Sugestões", href: "/suggestions", icon: Lightbulb },
       ],
     },
-    ...(relatedDocs.length > 0
-      ? [
-          {
-            label: "Relatórios Relacionados",
-            links: relatedDocs.map((doc) => ({
-              label: doc.title.length > 30 ? doc.title.substring(0, 30) + "..." : doc.title,
-              href: `/documents/${doc.id}`,
-              icon: FileText,
-            })),
-          },
-        ]
-      : []),
     {
       label: "Conta",
       links: [

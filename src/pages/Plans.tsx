@@ -167,7 +167,7 @@ export default function Plans() {
           <div className="flex-1 px-2 sm:px-3 md:px-6 py-2 sm:py-3 md:py-4 max-w-7xl mx-auto w-full">
             {/* Current Plan Status */}
             {hasActivePlan && user?.subscription && (
-              <div className="mb-8 p-6 rounded-xl bg-gradient-to-r from-cyan/10 via-cyan/5 to-transparent border border-cyan/20">
+              <div className="mb-8 p-6 rounded-2xl bg-gradient-to-r from-cyan/10 via-cyan/5 to-transparent border border-cyan/20">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                   <div>
                     <div className="flex items-center gap-2 mb-2">

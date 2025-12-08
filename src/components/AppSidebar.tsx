@@ -93,7 +93,7 @@ export function AppSidebar() {
                       to={item.url}
                       end={item.url === "/"}
                       className={({ isActive }) =>
-                        `group/item flex ${isCollapsed ? '!w-auto mx-auto' : 'w-full'} items-center ${isCollapsed ? 'justify-center' : 'gap-3'} ${isCollapsed ? 'px-2' : 'px-3'} py-2.5 rounded-lg font-medium text-[14px] transition-all duration-300 relative ${isCollapsed ? '' : 'overflow-hidden'} ${
+                        `group/item flex ${isCollapsed ? '!w-auto mx-auto' : 'w-full'} items-center ${isCollapsed ? 'justify-center' : 'gap-3'} ${isCollapsed ? 'px-2' : 'px-3'} py-2.5 rounded-xl font-medium text-[14px] transition-all duration-300 relative ${isCollapsed ? '' : 'overflow-hidden'} ${
                           isActive
                             ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-cyan"
                           : `text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-foreground/10 ${isCollapsed ? '' : 'hover:translate-x-1'}`
@@ -118,7 +118,7 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="border-t border-sidebar-border p-4 transition-all duration-300">
-        <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'} mb-3 ${isCollapsed ? 'px-0' : 'px-1'} transition-all duration-300 hover:bg-foreground/5 rounded-lg ${isCollapsed ? 'p-2' : 'p-2 -ml-2 -mr-2'}`}>
+        <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'} mb-3 ${isCollapsed ? 'px-0' : 'px-1'} transition-all duration-300 hover:bg-foreground/5 rounded-xl ${isCollapsed ? 'p-2' : 'p-2 -ml-2 -mr-2'}`}>
           <NotificationBell />
           {!isCollapsed && (
             <div className="flex-1 min-w-0 animate-fade-in">
@@ -131,7 +131,7 @@ export function AppSidebar() {
           variant="ghost"
           size={isCollapsed ? "icon" : "default"}
           onClick={handleLogout}
-          className={`group w-full ${isCollapsed ? 'justify-center mx-auto' : 'justify-start'} text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-foreground/10 font-medium text-[14px] rounded-lg transition-all duration-300 ${isCollapsed ? '' : 'hover:translate-x-1'} active:scale-95`}
+          className={`group w-full ${isCollapsed ? 'justify-center mx-auto' : 'justify-start'} text-sidebar-foreground/80 hover:text-sidebar-foreground hover:bg-foreground/10 font-medium text-[14px] rounded-xl transition-all duration-300 ${isCollapsed ? '' : 'hover:translate-x-1'} active:scale-95`}
         >
           <LogOut className="h-4 w-4 stroke-[1.5] transition-transform duration-300 group-hover:rotate-12" />
           {!isCollapsed && <span className="ml-2">Sair</span>}

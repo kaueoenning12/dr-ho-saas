@@ -133,7 +133,7 @@ export default function Home() {
                     <p className="text-muted-foreground">Carregando relatórios...</p>
                   </div>
                 ) : recentDocuments.length > 0 ? (
-                  <div className="border border-cyan/10 rounded-lg overflow-hidden">
+                  <div className="border border-cyan/10 rounded-xl overflow-hidden">
                     <div className="overflow-x-auto">
                       <Table>
                         <TableHeader>
@@ -153,7 +153,7 @@ export default function Home() {
                               onClick={() => handleOpenDocument(document)}
                             >
                               <TableCell>
-                                <div className="h-10 w-10 rounded-lg bg-cyan/10 flex items-center justify-center">
+                                <div className="h-10 w-10 rounded-xl bg-cyan/10 flex items-center justify-center">
                                   <FileText className="h-5 w-5 text-cyan" />
                                 </div>
                               </TableCell>

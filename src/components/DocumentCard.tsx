@@ -146,7 +146,7 @@ export const DocumentCard = memo(function DocumentCard({
             <Badge
               key={keyword}
               variant="secondary"
-              className="text-[9px] sm:text-[10px] font-normal px-1.5 sm:px-2 py-0.5 bg-gradient-brand/10 border-0 text-cyan transition-all duration-300 group-hover:bg-gradient-brand/20 rounded-md"
+              className="text-[9px] sm:text-[10px] font-normal px-1.5 sm:px-2 py-0.5 bg-gradient-brand/10 border-0 text-cyan transition-all duration-300 group-hover:bg-gradient-brand/20 rounded-lg"
             >
               {keyword}
             </Badge>

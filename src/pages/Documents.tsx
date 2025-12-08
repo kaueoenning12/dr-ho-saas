@@ -64,19 +64,7 @@ export default function Documents() {
   }, [navigate]);
 
   // Prepare navigation cards for CardNavigation
-  const categoryNames = ["Todas", ...categories.map(cat => cat.name)];
-  
   const navCards = [
-    {
-      label: "Categorias",
-      links: categoryNames
-        .filter((cat) => cat !== "Todas")
-        .map((category) => ({
-          label: category,
-          href: "/documents",
-          icon: FileText,
-        })),
-    },
     {
       label: "Navegação",
       links: [

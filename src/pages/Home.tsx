@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { MobileSidebar } from "@/components/layout/MobileSidebar";
@@ -15,6 +15,14 @@ import { Button } from "@/components/ui/button";
 import { ArrowRight, FileText } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { NotificationList } from "@/components/layout/NotificationList";
+import { useUnreadCount } from "@/hooks/useNotificationsQuery";
 import type { Database } from "@/integrations/supabase/types";
 
 type Document = Database["public"]["Tables"]["documents"]["Row"];
@@ -22,6 +30,7 @@ type Document = Database["public"]["Tables"]["documents"]["Row"];
 export default function Home() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const [notificationDialogOpen, setNotificationDialogOpen] = useState(false);
   
   // OTIMIZAÇÃO: Usar hook otimizado que busca apenas 6 documentos do banco
   // ao invés de buscar todos e filtrar no cliente
@@ -39,6 +48,27 @@ export default function Home() {
 
   // Buscar eventos
   const { data: events = [], isLoading: eventsLoading } = useEvents();
+
+  // Buscar contagem de notificações não lidas
+  const { data: unreadCount = 0 } = useUnreadCount();
+
+  // Exibir diálogo de notificações automaticamente se houver notificações não lidas
+  useEffect(() => {
+    if (!user || typeof window === "undefined") {
+      return;
+    }
+
+    // Only show dialog if there are unread notifications
+    if (unreadCount > 0) {
+      const sessionKey = `notificationDialogSeen:${user.id}`;
+      const hasSeenDialog = sessionStorage.getItem(sessionKey);
+
+      if (!hasSeenDialog) {
+        setNotificationDialogOpen(true);
+        sessionStorage.setItem(sessionKey, "true");
+      }
+    }
+  }, [user, unreadCount]);
 
   const handleOpenDocument = (document: Document) => {
     navigate(`/documents/${document.id}`);
@@ -185,6 +215,15 @@ export default function Home() {
           </div>
         </main>
       </div>
+
+      <Dialog open={notificationDialogOpen} onOpenChange={setNotificationDialogOpen}>
+        <DialogContent className="sm:max-w-md p-0">
+          <DialogHeader className="px-4 pt-4">
+            <DialogTitle>Notificações</DialogTitle>
+          </DialogHeader>
+          <NotificationList />
+        </DialogContent>
+      </Dialog>
     </SidebarProvider>
   );
 }

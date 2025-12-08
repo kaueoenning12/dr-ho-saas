@@ -11,6 +11,7 @@ import { Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
+import { parseFeatures } from "@/lib/utils/parseFeatures";
 
 const planSchema = z.object({
   name: z.string().min(2, "Nome deve ter no mínimo 2 caracteres"),
@@ -40,24 +41,10 @@ export function PlanManagementDialog({ plan, onSuccess }: PlanManagementDialogPr
   const isEditing = !!plan;
   const queryClient = useQueryClient();
   
-  // Parse features from different possible formats
-  const parseFeatures = (features: any): string => {
-    if (!features) return "";
-    if (Array.isArray(features)) {
-      return features.join('\n');
-    }
-    if (typeof features === 'string') {
-      try {
-        const parsed = JSON.parse(features);
-        if (Array.isArray(parsed)) {
-          return parsed.join('\n');
-        }
-        return features;
-      } catch {
-        return features;
-      }
-    }
-    return "";
+  // Convert features to string format for textarea (one per line)
+  const featuresToString = (features: any): string => {
+    const parsed = parseFeatures(features);
+    return parsed.join('\n');
   };
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<FormData>({
@@ -66,7 +53,7 @@ export function PlanManagementDialog({ plan, onSuccess }: PlanManagementDialogPr
       name: plan.name || "",
       description: plan.description || "",
       price: plan.price?.toString() || "0",
-      features: parseFeatures(plan.features),
+      features: featuresToString(plan.features),
       stripe_product_id: plan.stripe_product_id || "",
       stripe_price_id: plan.stripe_price_id || "",
     } : {

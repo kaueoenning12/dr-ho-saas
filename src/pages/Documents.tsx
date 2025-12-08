@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { Search, Sparkles, FileText, MessageSquare, MessageCircle, Megaphone, Lightbulb, CreditCard, Settings, Shield, Home } from "lucide-react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
@@ -14,16 +14,8 @@ import { useScrollReveal } from "@/hooks/useScrollReveal";
 import type { Database } from "@/integrations/supabase/types";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { NotificationList } from "@/components/layout/NotificationList";
 import { SubscriptionBanner } from "@/components/SubscriptionBanner";
 import { CardNavigation } from "@/components/CardNavigation";
-import { useUnreadCount } from "@/hooks/useNotificationsQuery";
 import { useDocumentCategories } from "@/hooks/useDocumentCategories";
 
 type Document = Database["public"]["Tables"]["documents"]["Row"];
@@ -32,7 +24,6 @@ export default function Documents() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("Todas");
   const [showOnlyNew, setShowOnlyNew] = useState(false);
-  const [notificationDialogOpen, setNotificationDialogOpen] = useState(false);
   const navigate = useNavigate();
   const { user } = useAuth();
 
@@ -61,30 +52,12 @@ export default function Documents() {
     selectedCategory === "Todas" ? undefined : selectedCategory,
     searchTerm
   );
-  const { data: unreadCount = 0 } = useUnreadCount();
   const { data: categories = [] } = useDocumentCategories();
   
   // Check if we should show folder navigator (if there are folders at root level)
   const hasFolders = rootContents && rootContents.folders.length > 0;
 
   const titleReveal = useScrollReveal<HTMLDivElement>({ threshold: 0.3 });
-
-  useEffect(() => {
-    if (!user || typeof window === "undefined") {
-      return;
-    }
-
-    // Only show dialog if there are unread notifications
-    if (unreadCount > 0) {
-      const sessionKey = `notificationDialogSeen:${user.id}`;
-      const hasSeenDialog = sessionStorage.getItem(sessionKey);
-
-      if (!hasSeenDialog) {
-        setNotificationDialogOpen(true);
-        sessionStorage.setItem(sessionKey, "true");
-      }
-    }
-  }, [user, unreadCount]);
 
   const handleOpenDocument = useCallback((document: Document) => {
     navigate(`/documents/${document.id}`);
@@ -310,15 +283,6 @@ export default function Documents() {
           </div>
         </main>
       </div>
-
-      <Dialog open={notificationDialogOpen} onOpenChange={setNotificationDialogOpen}>
-        <DialogContent className="sm:max-w-md p-0">
-          <DialogHeader className="px-4 pt-4">
-            <DialogTitle>Notificações</DialogTitle>
-          </DialogHeader>
-          <NotificationList />
-        </DialogContent>
-      </Dialog>
     </SidebarProvider>
   );
 }

@@ -9,8 +9,8 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Settings } from "lucide-react";
 import { useStripeConfigs, useUpdateStripeConfig, useCreateStripeConfig } from "@/hooks/useStripeConfig";
+import { useSubscriptionPlans } from "@/hooks/useSubscriptionsQuery";
 import { toast } from "sonner";
-import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 
 const stripeConfigSchema = z.object({
@@ -21,9 +21,14 @@ const stripeConfigSchema = z.object({
     (val) => !val || val.startsWith('whsec_'),
     "Formato inválido. Deve começar com whsec_"
   ),
+  referenced_plan_id: z.string().optional(),
   default_product_id: z.string().optional().refine(
     (val) => !val || val.startsWith('prod_'),
     "Formato inválido. Deve começar com prod_"
+  ),
+  default_price_id: z.string().optional().refine(
+    (val) => !val || val.startsWith('price_'),
+    "Formato inválido. Deve começar com price_"
   ),
   is_active: z.boolean(),
 });
@@ -41,6 +46,7 @@ export function StripeConfigDialog({ config, onSuccess }: StripeConfigDialogProp
   const isEditing = !!config;
   const { refetch } = useStripeConfigs();
   const queryClient = useQueryClient();
+  const { data: plans = [] } = useSubscriptionPlans();
   
   const { register, handleSubmit, reset, watch, setValue, formState: { errors } } = useForm<FormData>({
     resolver: zodResolver(stripeConfigSchema),
@@ -49,14 +55,18 @@ export function StripeConfigDialog({ config, onSuccess }: StripeConfigDialogProp
       publishable_key: config.publishable_key,
       secret_key: config.secret_key,
       webhook_secret: config.webhook_secret || "",
+      referenced_plan_id: config.referenced_plan_id || "",
       default_product_id: config.default_product_id || "",
+      default_price_id: config.default_price_id || "",
       is_active: config.is_active,
     } : {
       environment: 'test',
       publishable_key: "",
       secret_key: "",
       webhook_secret: "",
+      referenced_plan_id: "",
       default_product_id: "",
+      default_price_id: "",
       is_active: false,
     },
   });
@@ -72,16 +82,14 @@ export function StripeConfigDialog({ config, onSuccess }: StripeConfigDialogProp
     try {
       console.log("🔵 [ADMIN] Salvando configuração Stripe:", data.environment);
 
-      const newDefaultProductId = data.default_product_id?.trim() || null;
-      const oldDefaultProductId = config?.default_product_id || null;
-      const defaultProductIdChanged = newDefaultProductId !== oldDefaultProductId && newDefaultProductId !== null;
-
       const configData = {
         environment: data.environment,
         publishable_key: data.publishable_key.trim(),
         secret_key: data.secret_key.trim(),
         webhook_secret: data.webhook_secret?.trim() || null,
-        default_product_id: newDefaultProductId,
+        referenced_plan_id: data.referenced_plan_id?.trim() || null,
+        default_product_id: data.default_product_id?.trim() || null,
+        default_price_id: data.default_price_id?.trim() || null,
         is_active: data.is_active,
       };
 
@@ -91,59 +99,23 @@ export function StripeConfigDialog({ config, onSuccess }: StripeConfigDialogProp
         await createMutation.mutateAsync(configData);
       }
 
-      // Se default_product_id foi alterado e está ativo, atualizar planos que não têm stripe_product_id
-      if (defaultProductIdChanged && data.is_active) {
-        try {
-          console.log("🔄 [ADMIN] Atualizando planos com default_product_id:", newDefaultProductId);
-          
-          // Primeiro, buscar planos que precisam ser atualizados
-          const { data: plansToUpdate, error: fetchError } = await supabase
-            .from("subscription_plans")
-            .select("id")
-            .eq("is_active", true)
-            .or("stripe_product_id.is.null,stripe_product_id.eq.");
-
-          if (fetchError) {
-            console.error("❌ [ADMIN] Erro ao buscar planos:", fetchError);
-            toast.warning("Configuração salva, mas houve um erro ao buscar planos. O trigger do banco tentará atualizar.");
-          } else if (plansToUpdate && plansToUpdate.length > 0) {
-            // Atualizar os planos encontrados
-            const planIds = plansToUpdate.map(p => p.id);
-            const { data: updatedPlans, error: updateError } = await supabase
-              .from("subscription_plans")
-              .update({ 
-                stripe_product_id: newDefaultProductId,
-                updated_at: new Date().toISOString()
-              })
-              .in("id", planIds)
-              .select();
-
-            if (updateError) {
-              console.error("❌ [ADMIN] Erro ao atualizar planos:", updateError);
-              toast.warning("Configuração salva, mas houve um erro ao atualizar os planos automaticamente. O trigger do banco tentará atualizar.");
-            } else {
-              const updatedCount = updatedPlans?.length || 0;
-              console.log(`✅ [ADMIN] ${updatedCount} plano(s) atualizado(s) com product_id:`, newDefaultProductId);
-              toast.success(`Configuração salva! ${updatedCount} plano(s) atualizado(s) automaticamente com o Product ID padrão.`);
-              
-              // Invalidar queries de planos para refetch automático
-              queryClient.invalidateQueries({ queryKey: ["subscription-plans"] });
-            }
-          } else {
-            console.log("ℹ️ [ADMIN] Nenhum plano precisa ser atualizado (todos já possuem product_id)");
-            toast.success("Configuração salva! Todos os planos já possuem Product ID configurado.");
-          }
-        } catch (syncError: any) {
-          console.error("❌ [ADMIN] Erro ao sincronizar planos:", syncError);
-          toast.warning("Configuração salva, mas houve um erro ao sincronizar os planos. O trigger do banco tentará atualizar.");
-        }
-      }
-
-      // Se está ativando esta configuração, desativar outras do mesmo ambiente
+      // O trigger do banco de dados irá sincronizar automaticamente quando:
+      // - is_active for ativado
+      // - default_product_id ou default_price_id mudarem
+      // A sincronização será feita apenas no plano referenciado (se houver)
       if (data.is_active) {
-        // Isso será feito via trigger ou manualmente
-        // Por enquanto, apenas avisar o admin
-        toast.info("Lembre-se: apenas uma configuração pode estar ativa por vez. Desative outras se necessário.");
+        if (data.referenced_plan_id) {
+          const selectedPlan = plans.find(p => p.id === data.referenced_plan_id);
+          toast.success(
+            `Configuração salva e ativada! O plano "${selectedPlan?.name || 'selecionado'}" será sincronizado automaticamente.`
+          );
+          // Invalidar queries de planos para refetch automático
+          queryClient.invalidateQueries({ queryKey: ["subscription-plans"] });
+        } else {
+          toast.success("Configuração salva e ativada! Nenhum plano será sincronizado (nenhum plano foi selecionado).");
+        }
+      } else {
+        toast.success("Configuração salva com sucesso!");
       }
 
       reset();
@@ -199,7 +171,7 @@ export function StripeConfigDialog({ config, onSuccess }: StripeConfigDialogProp
             />
             {errors.publishable_key && <p className="text-sm text-red-500">{errors.publishable_key.message}</p>}
             <p className="text-xs text-muted-foreground mt-1">
-              Formato: pk_test_... ou pk_live_...
+              <strong>O que faz:</strong> Usada no frontend para inicializar o Stripe e criar sessões de checkout. Pode ser exposta publicamente. Formato: pk_test_... ou pk_live_...
             </p>
           </div>
 
@@ -212,7 +184,7 @@ export function StripeConfigDialog({ config, onSuccess }: StripeConfigDialogProp
             />
             {errors.secret_key && <p className="text-sm text-red-500">{errors.secret_key.message}</p>}
             <p className="text-xs text-muted-foreground mt-1">
-              Formato: sk_test_... ou sk_live_... (mantida segura no banco)
+              <strong>O que faz:</strong> Usada nas edge functions para operações no servidor (criar checkout, gerenciar assinaturas, processar webhooks). Deve ser mantida segura. Formato: sk_test_... ou sk_live_...
             </p>
           </div>
 
@@ -225,7 +197,26 @@ export function StripeConfigDialog({ config, onSuccess }: StripeConfigDialogProp
             />
             {errors.webhook_secret && <p className="text-sm text-red-500">{errors.webhook_secret.message}</p>}
             <p className="text-xs text-muted-foreground mt-1">
-              Formato: whsec_... (obtido após configurar webhook no Stripe)
+              <strong>O que faz:</strong> Usado para validar que os eventos recebidos realmente vêm do Stripe, garantindo segurança nos webhooks. Obtido após configurar o endpoint de webhook no Stripe. Formato: whsec_...
+            </p>
+          </div>
+
+          <div>
+            <Label htmlFor="referenced_plan_id">Plano Referenciado (Opcional)</Label>
+            <select
+              {...register("referenced_plan_id")}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <option value="">Nenhum</option>
+              {plans.map((plan) => (
+                <option key={plan.id} value={plan.id}>
+                  {plan.name} - R$ {plan.price.toFixed(2)}
+                </option>
+              ))}
+            </select>
+            {errors.referenced_plan_id && <p className="text-sm text-red-500">{errors.referenced_plan_id.message}</p>}
+            <p className="text-xs text-muted-foreground mt-1">
+              <strong>O que faz:</strong> Define qual plano de assinatura receberá os Product ID e Price ID configurados abaixo. Se deixar vazio (Nenhum), nenhum plano será sincronizado automaticamente.
             </p>
           </div>
 
@@ -237,7 +228,19 @@ export function StripeConfigDialog({ config, onSuccess }: StripeConfigDialogProp
             />
             {errors.default_product_id && <p className="text-sm text-red-500">{errors.default_product_id.message}</p>}
             <p className="text-xs text-muted-foreground mt-1">
-              Product ID padrão do Stripe (formato: prod_xxxxx). Usado como fallback se o plano não tiver stripe_product_id configurado.
+              <strong>O que faz:</strong> ID do produto no Stripe que representa o serviço/plano. Quando você ativar esta configuração, este ID será sincronizado automaticamente para o campo "Stripe Product ID" do plano referenciado acima. Formato: prod_xxxxx
+            </p>
+          </div>
+
+          <div>
+            <Label htmlFor="default_price_id">Price ID Padrão (Opcional)</Label>
+            <Input 
+              {...register("default_price_id")} 
+              placeholder="price_..." 
+            />
+            {errors.default_price_id && <p className="text-sm text-red-500">{errors.default_price_id.message}</p>}
+            <p className="text-xs text-muted-foreground mt-1">
+              <strong>O que faz:</strong> ID do preço no Stripe que define o valor e periodicidade (mensal, anual, etc.) do produto. Quando você ativar esta configuração, este ID será sincronizado automaticamente para o campo "Stripe Price ID" do plano referenciado acima. Formato: price_xxxxx
             </p>
           </div>
 

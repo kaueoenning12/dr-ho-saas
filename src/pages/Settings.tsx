@@ -11,16 +11,24 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { ArrowRight, CreditCard } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { doutorHOPlan } from "@/lib/mockData";
 import { daysUntil, formatDateBR } from "@/lib/utils";
+import { useSubscriptionPlans } from "@/hooks/useSubscriptionsQuery";
+import { parseFeatures } from "@/lib/utils/parseFeatures";
 
 export default function Settings() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("account");
+  const { data: plans = [] } = useSubscriptionPlans();
   
-  const currentPlan = user?.subscription?.plan_id === doutorHOPlan.id ? doutorHOPlan : null;
+  // Buscar o plano atual do banco de dados
+  const currentPlan = user?.subscription?.plan_id 
+    ? plans.find(p => p.id === user.subscription.plan_id) 
+    : null;
   const daysRemaining = user?.subscription?.expires_at ? daysUntil(user.subscription.expires_at) : 0;
+  
+  // Parsear features do plano
+  const planFeatures = currentPlan?.features ? parseFeatures(currentPlan.features) : [];
 
   return (
     <SidebarProvider>
@@ -101,11 +109,11 @@ export default function Settings() {
                                 <h3 className="text-lg font-semibold text-navy">{currentPlan?.name}</h3>
                               </div>
                               <p className="text-2xl font-bold text-navy">
-                                R$ {currentPlan?.priceYearly.toFixed(2)}
+                                R$ {currentPlan?.price.toFixed(2)}
                                 <span className="text-sm font-normal text-navy/60"> /ano</span>
                               </p>
                               <p className="text-sm text-navy/60 mt-1">
-                                ou 12x R$ {currentPlan?.priceMonthly.toFixed(2)}
+                                ou 12x R$ {currentPlan ? (currentPlan.price / 12).toFixed(2) : "0.00"}
                               </p>
                             </div>
                             <Badge
@@ -137,17 +145,19 @@ export default function Settings() {
                         </div>
 
                         {/* Plan Features */}
-                        <div>
-                          <h4 className="text-sm font-medium text-navy/70 mb-3">Recursos do seu plano:</h4>
-                          <ul className="space-y-2">
-                            {currentPlan?.features.map((feature, index) => (
-                              <li key={index} className="flex items-start gap-2 text-sm text-navy/80">
-                                <div className="mt-0.5 h-1.5 w-1.5 rounded-full bg-cyan shrink-0" />
-                                {feature}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
+                        {planFeatures.length > 0 && (
+                          <div>
+                            <h4 className="text-sm font-medium text-navy/70 mb-3">Recursos do seu plano:</h4>
+                            <ul className="space-y-2">
+                              {planFeatures.map((feature, index) => (
+                                <li key={index} className="flex items-start gap-2 text-sm text-navy/80">
+                                  <div className="mt-0.5 h-1.5 w-1.5 rounded-full bg-cyan shrink-0" />
+                                  {feature}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
 
                         {/* Actions */}
                         <div className="pt-4 border-t border-border/50">

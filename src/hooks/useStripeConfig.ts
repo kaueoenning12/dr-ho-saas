@@ -9,6 +9,8 @@ export interface StripeConfig {
   secret_key: string;
   webhook_secret: string | null;
   default_product_id: string | null;
+  default_price_id: string | null;
+  referenced_plan_id: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;

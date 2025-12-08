@@ -15,6 +15,7 @@ import { useSubscriptionPlans } from "@/hooks/useSubscriptionsQuery";
 import { redirectToCheckout } from "@/lib/stripe/client";
 import { invokeStripeFunction } from "@/lib/stripe/edgeFunctionHelper";
 import { hasValidPaidSubscription } from "@/lib/utils/subscription";
+import { parseFeatures } from "@/lib/utils/parseFeatures";
 
 export default function Plans() {
   const { user } = useAuth();
@@ -50,25 +51,6 @@ export default function Plans() {
   // - Tem assinatura mas é plano diferente (upgrade/downgrade)
   // - Tem assinatura mas está expirando em menos de 30 dias (renovação antecipada)
   const canSubscribe = isFreePlan || !hasActivePlan || !isSamePlan || isExpiringSoon;
-
-  // Helper function para parsear features de forma segura
-  const parseFeatures = (features: string | null | undefined): string[] => {
-    if (!features) return [];
-    
-    try {
-      const parsed = JSON.parse(features);
-      return Array.isArray(parsed) ? parsed : [features];
-    } catch {
-      // Trata como texto simples
-      if (features.includes('\n')) {
-        return features.split('\n').map(f => f.trim()).filter(Boolean);
-      } else if (features.includes(',')) {
-        return features.split(',').map(f => f.trim()).filter(Boolean);
-      } else {
-        return [features];
-      }
-    }
-  };
 
   // Loading state
   if (plansLoading) {
@@ -353,12 +335,20 @@ export default function Plans() {
 
                 <CardContent className="px-6 pb-6">
                   <ul className="space-y-3">
-                    {primaryPlan?.features && parseFeatures(String(primaryPlan.features)).map((feature: string, index: number) => (
-                      <li key={index} className="flex items-start gap-3">
-                        <Check className="h-5 w-5 text-cyan shrink-0 mt-0.5" />
-                        <span className="text-sm">{feature}</span>
-                      </li>
-                    ))}
+                    {primaryPlan?.features && (() => {
+                      const features = parseFeatures(primaryPlan.features);
+                      console.log("[Plans] Features parsed:", {
+                        original: primaryPlan.features,
+                        parsed: features,
+                        type: typeof primaryPlan.features
+                      });
+                      return features.map((feature: string, index: number) => (
+                        <li key={index} className="flex items-start gap-3">
+                          <Check className="h-5 w-5 text-cyan shrink-0 mt-0.5" />
+                          <span className="text-sm">{feature}</span>
+                        </li>
+                      ));
+                    })()}
                   </ul>
                 </CardContent>
 

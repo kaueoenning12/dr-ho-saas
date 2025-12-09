@@ -101,201 +101,218 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const currentUserRole = currentUserRef.current?.role;
     
     try {
-      // OTIMIZAÇÃO 1: Queries PARALELAS com Promise.allSettled
-      const QUERY_TIMEOUT = 5000; // 5 segundos
-      const isTimeoutError = (error: unknown) =>
-        error instanceof Error && error.message === "Timeout";
-
-      async function withTimeout<T>(promise: Promise<T>, timeout: number = QUERY_TIMEOUT) {
-        return Promise.race([
-          promise,
-          new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error("Timeout")), timeout)
-          ),
-        ]);
-      }
-      
-      // Fazer profile e role primeiro (mais rápidos e críticos)
-      const [profileResult, roleResult] = await Promise.allSettled([
-        // Profile query
-        (async () => {
-          const query = supabase
-            .from("profiles")
-            .select("*")
-            .eq("user_id", supabaseUser.id)
-            .maybeSingle();
-          return await withTimeout(query as unknown as Promise<any>);
-        })(),
-        // Role query
-        (async () => {
-          const query = supabase
-            .from("user_roles")
-            .select("role")
-            .eq("user_id", supabaseUser.id)
-            .maybeSingle();
-          return await withTimeout(query as unknown as Promise<any>);
-        })()
-      ]);
-
-      // Subscription query será feita em background (não bloqueia)
-      // O hook useUserSubscription no Settings fará o trabalho pesado
-      // Tentar buscar subscription em background sem bloquear
-      // Se falhar, o hook useUserSubscription no Settings fará o fallback
-      (async () => {
-        try {
-          const query = supabase
-            .from("user_subscriptions")
-            .select(`
-              *,
-              subscription_plans (
-                id,
-                name,
-                price
-              )
-            `)
-            .eq("user_id", supabaseUser.id)
-            .order("created_at", { ascending: false })
-            .maybeSingle();
-          
-          const result = await withTimeout(query as unknown as Promise<any>, QUERY_TIMEOUT);
-          
-          if (result?.data) {
-            console.log('[AUTH] Subscription encontrada:', {
-              planId: result.data.plan_id,
-              planName: result.data.subscription_plans?.name,
-              status: result.data.status,
-            });
-            
-            // Atualizar user quando subscription carregar
-            if (currentUserRef.current) {
-              const updatedUser = {
-                ...currentUserRef.current,
-                subscription: result.data
-              };
-              setUser(updatedUser);
-              currentUserRef.current = updatedUser;
-            }
-          }
-        } catch (error) {
-          // Silenciosamente falhar - o hook useUserSubscription no Settings fará o fallback
-          if (isTimeoutError(error)) {
-            console.log('[AUTH] Subscription será carregada pelo hook useUserSubscription no Settings');
-          }
-        }
-      })();
-
+      // OTIMIZAÇÃO: Criar userData inicial imediatamente com dados básicos do supabaseUser
+      // Profile, role e subscription serão carregados em background e atualizados quando disponíveis
       const metadata = supabaseUser.user_metadata as { name?: string; number?: string };
       const sanitizedMetadataNumber =
         metadata?.number && typeof metadata.number === "string"
           ? metadata.number.replace(/\D/g, "")
           : undefined;
 
-      // Process profile
-      let profileData: Profile | null = null;
-      if (profileResult.status === 'fulfilled' && (profileResult.value as any).data) {
-        profileData = (profileResult.value as any).data;
-        if (sanitizedMetadataNumber && profileData.number !== sanitizedMetadataNumber) {
-          const { data: updatedProfile, error: updateError } = await supabase
-            .from("profiles")
-            .update({ number: sanitizedMetadataNumber })
-            .eq("user_id", supabaseUser.id)
-            .select()
-            .single();
-          if (!updateError && updatedProfile) {
-            profileData = updatedProfile;
-          }
-        }
-      } else if (profileResult.status === 'fulfilled' && (profileResult.value as any).error?.code === 'PGRST116') {
-        // Create profile if not exists
-        const { data: newProfile } = await supabase
-          .from("profiles")
-          .insert({
-            user_id: supabaseUser.id,
-            email: supabaseUser.email || "",
-            name: metadata?.name || supabaseUser.email?.split('@')[0] || "Usuário",
-            number: sanitizedMetadataNumber || null,
-          })
-          .select()
-          .single();
-        profileData = newProfile;
-      } else if (profileResult.status === 'rejected') {
-        if (isTimeoutError(profileResult.reason)) {
-          console.warn("⌛ [AUTH] Timeout ao buscar profile, usando dados em cache se disponíveis.");
-        } else {
-          console.warn("⚠️ [AUTH] Erro ao buscar profile:", profileResult.reason);
-        }
-      }
-
-      // Process role - melhorar tratamento de erros
-      let roleData: any = null;
-      
-      if (roleResult.status === 'fulfilled') {
-        if ((roleResult.value as any).data) {
-          // Dados encontrados com sucesso
-          roleData = (roleResult.value as any).data;
-        } else if ((roleResult.value as any).error?.code === 'PGRST116') {
-          // Role não encontrado - criar como "user" apenas neste caso
-          console.log("ℹ️ [AUTH] Role não encontrado, criando role padrão 'user'");
-          const { data: newRole } = await supabase.from("user_roles").insert({
-            user_id: supabaseUser.id,
-            role: "user",
-          }).select().single();
-          roleData = newRole || { role: "user" };
-        } else if ((roleResult.value as any).error) {
-          // Erro de RLS ou outro erro - não usar fallback, manter role atual ou tentar novamente
-          console.error("❌ [AUTH] Erro ao buscar role:", (roleResult.value as any).error);
-          // Se houver role atual, usar ele; caso contrário, usar fallback apenas se não houver outro erro
-          if (currentUserRole) {
-            roleData = { role: currentUserRole };
-            console.log("ℹ️ [AUTH] Mantendo role atual devido a erro:", currentUserRole);
-          } else {
-            // Se não houver role atual e houver erro de RLS, pode ser problema de permissão
-            // Tentar uma query mais simples ou usar fallback apenas para novos usuários
-            roleData = { role: "user" };
-          }
-        }
-      } else if (roleResult.status === 'rejected') {
-        // Timeout ou outro erro de rede - não usar fallback automaticamente
-        if (isTimeoutError(roleResult.reason)) {
-          console.warn("⌛ [AUTH] Timeout ao buscar role, mantendo valor em cache.");
-        } else {
-          console.error("❌ [AUTH] Falha na query de role (erro de rede):", roleResult.reason);
-        }
-        // Se houver role atual, preservar; caso contrário, tentar uma última vez ou usar fallback seguro
-        if (currentUserRole) {
-          roleData = { role: currentUserRole };
-          console.log("ℹ️ [AUTH] Mantendo role atual devido a timeout:", currentUserRole);
-        } else {
-          // Para novos usuários ou primeiro carregamento com erro, usar fallback
-          roleData = { role: "user" };
-        }
-      }
-
-      // Subscription será carregada em background (não bloqueia)
-      // Usar dados anteriores se disponíveis, senão null (hook no Settings fará fallback)
-      const subscriptionData = currentUserRef.current?.subscription || null;
-
-      const userData: User = {
+      // Criar userData inicial com dados básicos (não bloqueia)
+      const initialUserData: User = {
         id: supabaseUser.id,
-        email: supabaseUser.email || profileData?.email || "",
-        name: profileData?.name || metadata?.name || supabaseUser.email?.split('@')[0] || "Usuário",
-        role: roleData?.role || currentUserRole || ("user" as UserRole),
-        number: profileData?.number || sanitizedMetadataNumber || null,
-        avatarUrl: profileData?.avatar_url,
-        subscription: subscriptionData || null,
+        email: supabaseUser.email || "",
+        name: metadata?.name || supabaseUser.email?.split('@')[0] || "Usuário",
+        role: currentUserRole || ("user" as UserRole),
+        number: sanitizedMetadataNumber || currentUserRef.current?.number || null,
+        avatarUrl: currentUserRef.current?.avatarUrl || null,
+        subscription: currentUserRef.current?.subscription || null,
       };
 
-      setUser(userData);
-      setProfile(profileData);
-      currentUserRef.current = userData;
+      setUser(initialUserData);
+      currentUserRef.current = initialUserData;
       hasInitialized.current = true;
 
-      // Salvar no cache persistente
-      saveUserDataToCache(supabaseUser.id, {
-        profile: profileData,
-        role: userData.role,
-        subscription: subscriptionData,
-      });
+      // Carregar profile, role e subscription em background (não bloqueia)
+      // Atualizar user quando cada um carregar
+      (async () => {
+        const QUERY_TIMEOUT = 5000; // 5 segundos
+        const isTimeoutError = (error: unknown) =>
+          error instanceof Error && error.message === "Timeout";
+
+        async function withTimeout<T>(promise: Promise<T>, timeout: number = QUERY_TIMEOUT) {
+          return Promise.race([
+            promise,
+            new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error("Timeout")), timeout)
+            ),
+          ]);
+        }
+
+        // Buscar profile em background
+        (async () => {
+          try {
+            const query = supabase
+              .from("profiles")
+              .select("*")
+              .eq("user_id", supabaseUser.id)
+              .maybeSingle();
+            
+            const result = await withTimeout(query as unknown as Promise<any>);
+            
+            if (result?.data) {
+              let profileData = result.data;
+              
+              // Atualizar número se necessário
+              if (sanitizedMetadataNumber && profileData.number !== sanitizedMetadataNumber) {
+                const { data: updatedProfile } = await supabase
+                  .from("profiles")
+                  .update({ number: sanitizedMetadataNumber })
+                  .eq("user_id", supabaseUser.id)
+                  .select()
+                  .single();
+                if (updatedProfile) {
+                  profileData = updatedProfile;
+                }
+              }
+              
+              // Atualizar user quando profile carregar
+              if (currentUserRef.current) {
+                const updatedUser = {
+                  ...currentUserRef.current,
+                  name: profileData.name || currentUserRef.current.name,
+                  number: profileData.number || currentUserRef.current.number,
+                  avatarUrl: profileData.avatar_url || currentUserRef.current.avatarUrl,
+                };
+                setUser(updatedUser);
+                setProfile(profileData);
+                currentUserRef.current = updatedUser;
+              }
+            } else if (result?.error?.code === 'PGRST116') {
+              // Create profile if not exists
+              const { data: newProfile } = await supabase
+                .from("profiles")
+                .insert({
+                  user_id: supabaseUser.id,
+                  email: supabaseUser.email || "",
+                  name: metadata?.name || supabaseUser.email?.split('@')[0] || "Usuário",
+                  number: sanitizedMetadataNumber || null,
+                })
+                .select()
+                .single();
+              
+              if (newProfile && currentUserRef.current) {
+                const updatedUser = {
+                  ...currentUserRef.current,
+                  name: newProfile.name || currentUserRef.current.name,
+                  number: newProfile.number || currentUserRef.current.number,
+                };
+                setUser(updatedUser);
+                setProfile(newProfile);
+                currentUserRef.current = updatedUser;
+              }
+            }
+          } catch (error) {
+            // Silenciosamente falhar - usar dados do cache se disponíveis
+            if (isTimeoutError(error)) {
+              console.log('[AUTH] Profile será carregado do cache ou em próxima tentativa');
+            }
+          }
+        })();
+
+        // Buscar role em background
+        (async () => {
+          try {
+            const query = supabase
+              .from("user_roles")
+              .select("role")
+              .eq("user_id", supabaseUser.id)
+              .maybeSingle();
+            
+            const result = await withTimeout(query as unknown as Promise<any>);
+            
+            if (result?.data) {
+              const roleData = result.data;
+              
+              // Atualizar user quando role carregar
+              if (currentUserRef.current) {
+                const updatedUser = {
+                  ...currentUserRef.current,
+                  role: roleData.role as UserRole,
+                };
+                setUser(updatedUser);
+                currentUserRef.current = updatedUser;
+              }
+            } else if (result?.error?.code === 'PGRST116') {
+              // Create role if not exists
+              const { data: newRole } = await supabase.from("user_roles").insert({
+                user_id: supabaseUser.id,
+                role: "user",
+              }).select().single();
+              
+              if (newRole && currentUserRef.current) {
+                const updatedUser = {
+                  ...currentUserRef.current,
+                  role: (newRole.role || "user") as UserRole,
+                };
+                setUser(updatedUser);
+                currentUserRef.current = updatedUser;
+              }
+            }
+          } catch (error) {
+            // Silenciosamente falhar - manter role atual
+            if (isTimeoutError(error)) {
+              console.log('[AUTH] Role será mantido do cache ou padrão');
+            }
+          }
+        })();
+
+        // Buscar subscription em background
+        (async () => {
+          try {
+            const query = supabase
+              .from("user_subscriptions")
+              .select(`
+                *,
+                subscription_plans (
+                  id,
+                  name,
+                  price
+                )
+              `)
+              .eq("user_id", supabaseUser.id)
+              .order("created_at", { ascending: false })
+              .maybeSingle();
+            
+            const result = await withTimeout(query as unknown as Promise<any>);
+            
+            if (result?.data) {
+              console.log('[AUTH] Subscription encontrada:', {
+                planId: result.data.plan_id,
+                planName: result.data.subscription_plans?.name,
+                status: result.data.status,
+              });
+              
+              // Atualizar user quando subscription carregar
+              if (currentUserRef.current) {
+                const updatedUser = {
+                  ...currentUserRef.current,
+                  subscription: result.data
+                };
+                setUser(updatedUser);
+                currentUserRef.current = updatedUser;
+              }
+            }
+          } catch (error) {
+            // Silenciosamente falhar - o hook useUserSubscription no Settings fará o fallback
+            if (isTimeoutError(error)) {
+              console.log('[AUTH] Subscription será carregada pelo hook useUserSubscription no Settings');
+            }
+          }
+        })();
+
+        // Salvar no cache persistente após um delay (para dar tempo das queries carregarem)
+        setTimeout(() => {
+          if (currentUserRef.current) {
+            saveUserDataToCache(supabaseUser.id, {
+              profile: currentUserRef.current as any,
+              role: currentUserRef.current.role,
+              subscription: currentUserRef.current.subscription,
+            });
+          }
+        }, 2000);
+      })();
     } catch (error) {
       console.error("❌ [AUTH] Erro em fetchUserData:", error);
       // Fallback user apenas se não houver usuário atual preservado

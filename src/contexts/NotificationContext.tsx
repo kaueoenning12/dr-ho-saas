@@ -58,8 +58,8 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
     if (notificationPermission === "granted" && "Notification" in window) {
       const browserNotification = new Notification(notification.title, {
         body: notification.message,
-        icon: "/dr_logo_branca.png",
-        badge: "/dr_logo_branca.png",
+        icon: "/dr_ho_logo_quadrada.png",
+        badge: "/dr_ho_logo_quadrada.png",
         tag: notification.id,
       });
 

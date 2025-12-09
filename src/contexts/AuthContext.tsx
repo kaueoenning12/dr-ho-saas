@@ -11,6 +11,27 @@ import {
   loadUserDataFromCacheSync
 } from "@/lib/utils/userCache";
 
+// Helper para suprimir erros de refresh token inválido
+const suppressRefreshTokenError = (error: unknown) => {
+  const errorMessage = error instanceof Error ? error.message : String(error);
+  const errorString = error?.toString() || "";
+  
+  if (
+    errorMessage.includes("Invalid Refresh Token") ||
+    errorMessage.includes("Refresh Token Not Found") ||
+    errorString.includes("Invalid Refresh Token") ||
+    errorString.includes("Refresh Token Not Found")
+  ) {
+    // Silenciosamente ignorar
+    return;
+  }
+  
+  // Logar outros erros apenas em desenvolvimento
+  if (import.meta.env.DEV) {
+    console.error(error);
+  }
+};
+
 type Profile = Database["public"]["Tables"]["profiles"]["Row"];
 type UserRole = Database["public"]["Enums"]["app_role"];
 type UserSubscription = Database["public"]["Tables"]["user_subscriptions"]["Row"];
@@ -381,11 +402,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             
             // Fazer fetch em background para atualizar dados
             fetchUserData(session.user, false)
-              .catch(console.error);
+              .catch(suppressRefreshTokenError);
           } else {
             // Sem cache, fazer fetch normalmente
             fetchUserData(session.user, true)
-              .catch(console.error)
+              .catch(suppressRefreshTokenError)
               .finally(() => mounted && setIsLoading(false));
           }
         }
@@ -417,7 +438,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         
         if (session?.user) {
           // Forçar refresh quando fizer login para garantir dados atualizados
-          await fetchUserData(session.user, true).catch(console.error);
+          await fetchUserData(session.user, true).catch(suppressRefreshTokenError);
           if (mounted) setIsLoading(false);
         } else {
           // Limpar cache ao fazer logout
@@ -464,7 +485,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 queryClient.invalidateQueries({ queryKey: ["user-subscription"] });
                 queryClient.invalidateQueries({ queryKey: ["subscription"] });
               })
-              .catch(console.error);
+              .catch(suppressRefreshTokenError);
           }
         }
       )

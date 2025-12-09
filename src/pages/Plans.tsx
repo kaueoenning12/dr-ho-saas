@@ -18,16 +18,50 @@ import { hasValidPaidSubscription } from "@/lib/utils/subscription";
 import { parseFeatures } from "@/lib/utils/parseFeatures";
 
 export default function Plans() {
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   
   const { data: plans = [], isLoading: plansLoading } = useSubscriptionPlans();
+
+  // Mostrar loading enquanto auth está carregando
+  if (authLoading || plansLoading) {
+    return (
+      <SidebarProvider>
+        <div className="min-h-screen flex w-full bg-background">
+          <AppSidebar />
+          <main className="flex-1 flex items-center justify-center">
+            <div className="text-center">
+              <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-cyan border-r-transparent mb-4"></div>
+              <p className="text-muted-foreground">Carregando planos...</p>
+            </div>
+          </main>
+        </div>
+      </SidebarProvider>
+    );
+  }
 
   // Separar planos gratuitos de pagos
   const freePlan = plans.find(p => p.price === 0);
   const paidPlans = plans.filter(p => p.price > 0);
   const primaryPlan = paidPlans[0]; // Usar o primeiro plano pago (DR HO - PREMIUM)
   
+  // No plan available state
+  if (!primaryPlan) {
+    return (
+      <SidebarProvider>
+        <div className="min-h-screen flex w-full bg-background">
+          <AppSidebar />
+          <main className="flex-1 flex items-center justify-center">
+            <div className="text-center">
+              <p className="text-muted-foreground">Nenhum plano disponível no momento.</p>
+            </div>
+          </main>
+        </div>
+      </SidebarProvider>
+    );
+  }
+
+  // Só calcular hasActivePlan após loading
   // Verificar se tem assinatura paga válida (não Free)
   // Plano Free = sem assinatura válida
   const hasActivePlan = hasValidPaidSubscription(user?.subscription);
@@ -51,39 +85,6 @@ export default function Plans() {
   // - Tem assinatura mas é plano diferente (upgrade/downgrade)
   // - Tem assinatura mas está expirando em menos de 30 dias (renovação antecipada)
   const canSubscribe = isFreePlan || !hasActivePlan || !isSamePlan || isExpiringSoon;
-
-  // Loading state
-  if (plansLoading) {
-    return (
-      <SidebarProvider>
-        <div className="min-h-screen flex w-full bg-background">
-          <AppSidebar />
-          <main className="flex-1 flex items-center justify-center">
-            <div className="text-center">
-              <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-cyan border-r-transparent mb-4"></div>
-              <p className="text-muted-foreground">Carregando planos...</p>
-            </div>
-          </main>
-        </div>
-      </SidebarProvider>
-    );
-  }
-
-  // No plan available state
-  if (!primaryPlan) {
-    return (
-      <SidebarProvider>
-        <div className="min-h-screen flex w-full bg-background">
-          <AppSidebar />
-          <main className="flex-1 flex items-center justify-center">
-            <div className="text-center">
-              <p className="text-muted-foreground">Nenhum plano disponível no momento.</p>
-            </div>
-          </main>
-        </div>
-      </SidebarProvider>
-    );
-  }
 
   const handleSubscribe = async () => {
     if (!user || !primaryPlan) return;

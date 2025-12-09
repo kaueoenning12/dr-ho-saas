@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from "react";
-import { Search, Sparkles, FileText, MessageSquare, MessageCircle, Megaphone, Lightbulb, CreditCard, Settings, Shield, Home } from "lucide-react";
+import { Search, Sparkles, FileText, MessageSquare, MessageCircle, Megaphone, Lightbulb, CreditCard, Settings, Shield, Home, ArrowLeft, ChevronRight } from "lucide-react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { MobileSidebar } from "@/components/layout/MobileSidebar";
@@ -184,6 +184,58 @@ export default function Documents() {
 
           <div className="flex-1 px-2 sm:px-3 md:px-6 py-2 sm:py-3 md:py-4">
             <SubscriptionBanner />
+            
+            {/* Breadcrumb Navigation */}
+            {(selectedCategory !== "Todas" || showOnlyNew) && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground mb-4">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => navigate(-1)}
+                  className="h-8 px-2 text-xs rounded-lg"
+                >
+                  <ArrowLeft className="h-4 w-4 mr-1" />
+                  Voltar
+                </Button>
+                <span className="text-muted-foreground/50">|</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setSelectedCategory("Todas");
+                    setShowOnlyNew(false);
+                  }}
+                  className="h-8 px-2 text-xs rounded-lg"
+                >
+                  Raiz
+                </Button>
+                {selectedCategory !== "Todas" && (
+                  <div className="flex items-center gap-2">
+                    <ChevronRight className="h-3 w-3" />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 px-2 text-xs rounded-lg"
+                    >
+                      {selectedCategory}
+                    </Button>
+                  </div>
+                )}
+                {showOnlyNew && (
+                  <div className="flex items-center gap-2">
+                    <ChevronRight className="h-3 w-3" />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 px-2 text-xs rounded-lg"
+                    >
+                      Novo
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div 
               ref={titleReveal.elementRef}
               className={`mb-4 sm:mb-6 md:mb-8 scroll-reveal scroll-reveal-up ${titleReveal.isVisible ? 'is-visible' : ''}`}

@@ -5,12 +5,15 @@ import {
   ZoomIn,
   ZoomOut,
   RotateCcw,
+  ArrowLeft,
+  ChevronRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Document as ViewerDocument, mockDocumentContents } from "@/lib/mockData";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
 import {
   Document as PDFDocument,
   Page,
@@ -44,6 +47,7 @@ export function PDFViewer({ document }: PDFViewerProps) {
   const loadedPdfUrlRef = useRef<string | null>(null);
   const pdfSourceRef = useRef<string | null>(null);
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (!document) return;
@@ -250,8 +254,8 @@ export function PDFViewer({ document }: PDFViewerProps) {
         const isMobile = containerWidth < 768;
         const horizontalMargin = isMobile ? 32 : 48;
         const calculatedScale = (containerWidth - horizontalMargin) / 595;
-        // Limitar entre 0.7 e 2.0 para permitir melhor adaptação
-        const boundedScale = Math.max(0.7, Math.min(2.0, calculatedScale));
+        // Limitar entre 0.95 e 2.0 - zoom mínimo de 95%
+        const boundedScale = Math.max(0.95, Math.min(2.0, calculatedScale));
         setAutoScale(boundedScale);
         setScale(boundedScale);
       }
@@ -270,7 +274,7 @@ export function PDFViewer({ document }: PDFViewerProps) {
   };
 
   const handleZoomOut = () => {
-    setScale((prev) => Math.max(prev - 0.2, 0.6));
+    setScale((prev) => Math.max(prev - 0.2, 0.95));
   };
 
   const handleZoomReset = () => {
@@ -313,21 +317,51 @@ export function PDFViewer({ document }: PDFViewerProps) {
   return (
     <div className="w-full h-full flex flex-col bg-background">
       <div className="px-6 py-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 flex-shrink-0">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <h2 className="text-xl font-bold">
-              {document.title}
-            </h2>
-            {document.category && (
-              <Badge variant="secondary" className="text-xs">
+        {/* Breadcrumb Navigation */}
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              navigate(-1);
+            }}
+            className="h-8 px-2 text-xs rounded-lg relative z-10"
+          >
+            <ArrowLeft className="h-4 w-4 mr-1" />
+            Voltar
+          </Button>
+          <span className="text-muted-foreground/50">|</span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              navigate("/documents");
+            }}
+            className="h-8 px-2 text-xs rounded-lg relative z-10"
+          >
+            Raiz
+          </Button>
+          {document.category && (
+            <div className="flex items-center gap-2">
+              <ChevronRight className="h-3 w-3" />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  navigate("/documents");
+                }}
+                className="h-8 px-2 text-xs rounded-lg relative z-10"
+              >
                 {document.category}
-              </Badge>
-            )}
-            <Badge variant="outline" className="flex items-center gap-1.5 px-2.5 py-1 bg-cyan/10 border-cyan/20 text-cyan">
-              <Shield className="h-3 w-3" />
-              <span className="text-xs font-medium">Protegido</span>
-            </Badge>
-          </div>
+              </Button>
+            </div>
+          )}
         </div>
       </div>
 

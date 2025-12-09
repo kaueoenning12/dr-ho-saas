@@ -106,16 +106,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const isTimeoutError = (error: unknown) =>
         error instanceof Error && error.message === "Timeout";
 
-      async function withTimeout<T>(promise: Promise<T>) {
+      async function withTimeout<T>(promise: Promise<T>, timeout: number = QUERY_TIMEOUT) {
         return Promise.race([
           promise,
           new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error("Timeout")), QUERY_TIMEOUT)
+            setTimeout(() => reject(new Error("Timeout")), timeout)
           ),
         ]);
       }
       
-      const [profileResult, roleResult, subscriptionResult] = await Promise.allSettled([
+      // Fazer profile e role primeiro (mais rápidos e críticos)
+      const [profileResult, roleResult] = await Promise.allSettled([
         // Profile query
         (async () => {
           const query = supabase
@@ -133,9 +134,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             .eq("user_id", supabaseUser.id)
             .maybeSingle();
           return await withTimeout(query as unknown as Promise<any>);
-        })(),
-        // Subscription query
-        (async () => {
+        })()
+      ]);
+
+      // Subscription query será feita em background (não bloqueia)
+      // O hook useUserSubscription no Settings fará o trabalho pesado
+      // Tentar buscar subscription em background sem bloquear
+      // Se falhar, o hook useUserSubscription no Settings fará o fallback
+      (async () => {
+        try {
           const query = supabase
             .from("user_subscriptions")
             .select(`
@@ -149,17 +156,33 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             .eq("user_id", supabaseUser.id)
             .order("created_at", { ascending: false })
             .maybeSingle();
-          const result = await withTimeout(query as unknown as Promise<any>);
+          
+          const result = await withTimeout(query as unknown as Promise<any>, QUERY_TIMEOUT);
+          
           if (result?.data) {
             console.log('[AUTH] Subscription encontrada:', {
               planId: result.data.plan_id,
               planName: result.data.subscription_plans?.name,
               status: result.data.status,
             });
+            
+            // Atualizar user quando subscription carregar
+            if (currentUserRef.current) {
+              const updatedUser = {
+                ...currentUserRef.current,
+                subscription: result.data
+              };
+              setUser(updatedUser);
+              currentUserRef.current = updatedUser;
+            }
           }
-          return result;
-        })()
-      ]);
+        } catch (error) {
+          // Silenciosamente falhar - o hook useUserSubscription no Settings fará o fallback
+          if (isTimeoutError(error)) {
+            console.log('[AUTH] Subscription será carregada pelo hook useUserSubscription no Settings');
+          }
+        }
+      })();
 
       const metadata = supabaseUser.user_metadata as { name?: string; number?: string };
       const sanitizedMetadataNumber =
@@ -248,19 +271,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
       }
 
-      // Process subscription
-      let subscriptionData = null;
-      if (subscriptionResult.status === 'fulfilled' && (subscriptionResult.value as any).data) {
-        subscriptionData = (subscriptionResult.value as any).data;
-      } else if (subscriptionResult.status === 'fulfilled' && (subscriptionResult.value as any).error) {
-        console.warn("⚠️ [AUTH] Erro retornado pela query de subscription:", (subscriptionResult.value as any).error);
-      } else if (subscriptionResult.status === 'rejected') {
-        if (isTimeoutError(subscriptionResult.reason)) {
-          console.warn("⌛ [AUTH] Timeout ao buscar subscription, mantendo dados anteriores.");
-        } else {
-          console.warn("⚠️ [AUTH] Erro ao buscar subscription:", subscriptionResult.reason);
-        }
-      }
+      // Subscription será carregada em background (não bloqueia)
+      // Usar dados anteriores se disponíveis, senão null (hook no Settings fará fallback)
+      const subscriptionData = currentUserRef.current?.subscription || null;
 
       const userData: User = {
         id: supabaseUser.id,

@@ -1,8 +1,10 @@
 import { useEffect, useState, useRef } from "react";
-import { Shield, Loader2 } from "lucide-react";
+import { Shield, Loader2, ArrowLeft, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
 import mammoth from "mammoth";
 
 interface DocxViewerProps {
@@ -21,6 +23,7 @@ export function DocxViewer({ document }: DocxViewerProps) {
   const [htmlContent, setHtmlContent] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (!document) return;
@@ -173,21 +176,51 @@ export function DocxViewer({ document }: DocxViewerProps) {
   return (
     <div className="w-full h-full flex flex-col bg-background">
       <div className="px-6 py-4 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 flex-shrink-0">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <h2 className="text-xl font-bold">
-              {document.title}
-            </h2>
-            {document.category && (
-              <Badge variant="secondary" className="text-xs">
+        {/* Breadcrumb Navigation */}
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              navigate(-1);
+            }}
+            className="h-8 px-2 text-xs rounded-lg relative z-10"
+          >
+            <ArrowLeft className="h-4 w-4 mr-1" />
+            Voltar
+          </Button>
+          <span className="text-muted-foreground/50">|</span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              navigate("/documents");
+            }}
+            className="h-8 px-2 text-xs rounded-lg relative z-10"
+          >
+            Raiz
+          </Button>
+          {document.category && (
+            <div className="flex items-center gap-2">
+              <ChevronRight className="h-3 w-3" />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  navigate("/documents");
+                }}
+                className="h-8 px-2 text-xs rounded-lg relative z-10"
+              >
                 {document.category}
-              </Badge>
-            )}
-            <Badge variant="outline" className="flex items-center gap-1.5 px-2.5 py-1 bg-cyan/10 border-cyan/20 text-cyan">
-              <Shield className="h-3 w-3" />
-              <span className="text-xs font-medium">Protegido</span>
-            </Badge>
-          </div>
+              </Button>
+            </div>
+          )}
         </div>
       </div>
 

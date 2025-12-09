@@ -6,10 +6,11 @@ import { useSubscriptionCheck } from "@/hooks/useSubscriptionCheck";
 import { useState } from "react";
 
 export function SubscriptionBanner() {
-  const { subscription, hasAccess } = useSubscriptionCheck();
+  const { subscription, hasAccess, isLoading } = useSubscriptionCheck();
   const [dismissed, setDismissed] = useState(false);
 
-  if (dismissed || hasAccess) {
+  // Não mostrar durante carregamento
+  if (isLoading || dismissed || hasAccess) {
     return null;
   }
 

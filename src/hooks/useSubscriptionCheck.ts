@@ -3,7 +3,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { checkSubscriptionAccess, SubscriptionStatus, SubscriptionCheckResult } from '@/lib/middleware/subscriptionGuard';
 
 export function useSubscriptionCheck() {
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   
   const deriveStatusFromUserSubscription = (subscription: NonNullable<typeof user>["subscription"]): SubscriptionStatus | null => {
     if (!subscription) {
@@ -54,6 +54,14 @@ export function useSubscriptionCheck() {
 
   // OTIMIZAÇÃO: Inicializar estado baseado em user.subscription se disponível
   const getInitialState = (): { check: SubscriptionCheckResult; loading: boolean } => {
+    // Se auth ainda está carregando, manter loading: true
+    if (authLoading) {
+      return {
+        check: { hasAccess: true, subscription: null }, // Otimista: assumir acesso até verificar
+        loading: true,
+      };
+    }
+
     if (!user || !isAuthenticated) {
       return {
         check: { hasAccess: false, subscription: null },
@@ -89,6 +97,12 @@ export function useSubscriptionCheck() {
   const lastCheckTimeRef = useRef<number>(0);
 
   useEffect(() => {
+    // Se auth ainda está carregando, manter loading: true
+    if (authLoading) {
+      setIsLoading(true);
+      return;
+    }
+
     if (!isAuthenticated || !user) {
       setSubscriptionCheck({
         hasAccess: false,
@@ -102,6 +116,7 @@ export function useSubscriptionCheck() {
     // Isso previne mostrar "sem plano" enquanto dados estão carregando
     if (!user.id || !user.role) {
       // User ainda está carregando, manter estado atual (otimista)
+      setIsLoading(true);
       return;
     }
 
@@ -242,7 +257,7 @@ export function useSubscriptionCheck() {
     return () => {
       cancelled = true;
     };
-  }, [isAuthenticated, user?.id, user?.subscription?.status, user?.subscription?.expires_at, user?.subscription?.plan_id, user?.subscription]);
+  }, [authLoading, isAuthenticated, user?.id, user?.subscription?.status, user?.subscription?.expires_at, user?.subscription?.plan_id, user?.subscription]);
 
   return {
     ...subscriptionCheck,

@@ -674,7 +674,7 @@ export const mockNotifications = [
 export const whatsappConfig = {
   phoneNumber: "18044990178",
   countryCode: "55",
-  welcomeMessage: "Olá! Bem-vindo à comunidade SafetyDocs. Como posso ajudar?",
+  welcomeMessage: "Olá! Tudo bem? Gostaria de saber sobre o .........",
   businessHours: "Segunda a Sexta, 8h às 18h",
   isOnline: true,
   groups: [

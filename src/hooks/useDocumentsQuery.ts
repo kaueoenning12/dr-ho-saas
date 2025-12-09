@@ -33,8 +33,21 @@ export interface DocumentStats {
 }
 
 // Flag global para cachear se a função RPC existe (evita tentativas repetidas)
-let rpcFunctionChecked = false;
-let rpcFunctionExists = false;
+// Armazenado em sessionStorage para persistir entre recarregamentos da página
+const RPC_CHECK_KEY = '__rpc_get_document_stats_exists';
+
+function getRpcFunctionStatus(): 'unknown' | 'exists' | 'not_exists' {
+  if (typeof window === 'undefined') return 'unknown';
+  const status = sessionStorage.getItem(RPC_CHECK_KEY);
+  if (status === 'true') return 'exists';
+  if (status === 'false') return 'not_exists';
+  return 'unknown';
+}
+
+function setRpcFunctionStatus(exists: boolean): void {
+  if (typeof window === 'undefined') return;
+  sessionStorage.setItem(RPC_CHECK_KEY, exists ? 'true' : 'false');
+}
 
 // Fetch statistics for multiple documents using aggregation
 export async function fetchDocumentsStats(documentIds: string[]): Promise<Record<string, DocumentStats>> {
@@ -48,16 +61,18 @@ export async function fetchDocumentsStats(documentIds: string[]): Promise<Record
 
   // OTIMIZAÇÃO: Tentar usar função RPC primeiro (muito mais eficiente)
   // Se não estiver disponível, usar fallback com queries diretas
-  // Nota: A função RPC pode não existir no banco, então vamos tentar apenas uma vez
-  // e cachear o resultado para evitar erros 400 repetidos no console
-  if (!rpcFunctionChecked || rpcFunctionExists) {
+  // IMPORTANTE: Não tentar se já sabemos que não existe (evita erros 400 no console)
+  const rpcStatus = getRpcFunctionStatus();
+  
+  // Só tentar usar RPC se não sabemos que ela não existe
+  if (rpcStatus !== 'not_exists') {
     try {
       const { data: rpcData, error: rpcError } = await supabase.rpc("get_document_stats", {
         document_ids: documentIds,
       });
 
       // Verificar se a função existe e retornou dados válidos
-      if (!rpcError && rpcData && Array.isArray(rpcData)) {
+      if (!rpcError && rpcData && Array.isArray(rpcData) && rpcData.length > 0) {
         // Função RPC disponível e funcionando - usar dados dela
         rpcData.forEach((row: { document_id: string; views: number; likes: number; comments: number }) => {
           if (stats[row.document_id]) {
@@ -69,22 +84,26 @@ export async function fetchDocumentsStats(documentIds: string[]): Promise<Record
           }
         });
         // Marcar que a função existe para próximas chamadas
-        rpcFunctionChecked = true;
-        rpcFunctionExists = true;
+        setRpcFunctionStatus(true);
         return stats;
       }
       
-      // Se erro, marcar como não disponível e usar fallback
+      // Se erro 400 ou função não existe, marcar como não disponível
       if (rpcError) {
-        // Marcar que a função não existe para evitar tentativas futuras
-        rpcFunctionChecked = true;
-        rpcFunctionExists = false;
+        // Verificar se é erro 400 (função não existe) ou outro erro
+        const isFunctionNotFound = rpcError.code === '42883' || 
+                                   rpcError.message?.includes('function') ||
+                                   rpcError.message?.includes('does not exist');
+        
+        if (isFunctionNotFound) {
+          // Marcar que a função não existe para evitar tentativas futuras
+          setRpcFunctionStatus(false);
+        }
         // Não logar erro - isso é esperado se a função não existe
       }
     } catch (rpcError: any) {
       // Função RPC não disponível - marcar como não existente
-      rpcFunctionChecked = true;
-      rpcFunctionExists = false;
+      setRpcFunctionStatus(false);
       // Não logar erro para não poluir o console
     }
   }
@@ -430,19 +449,32 @@ export function useDocuments(filters?: DocumentFilters, options?: { enabled?: bo
           
           if (allError) throw allError;
           
-          const searchTermLower = filters.searchTerm.toLowerCase();
+          // Normalize search term to remove accents (e.g., "plastico" matches "plástico")
+          const searchTermNormalized = filters.searchTerm
+            .toLowerCase()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "");
+          
           const filteredDocs = (allData || []).filter((doc: any) => {
-            const title = (doc.title || "").toLowerCase();
-            const description = (doc.description || "").toLowerCase();
-            const keywords = Array.isArray(doc.keywords) 
-              ? doc.keywords.join(" ").toLowerCase() 
-              : "";
-            const category = (doc.category || "").toLowerCase();
+            const normalizeText = (text: string) => {
+              if (!text) return "";
+              return text
+                .toLowerCase()
+                .normalize("NFD")
+                .replace(/[\u0300-\u036f]/g, "");
+            };
             
-            return title.includes(searchTermLower) ||
-                   description.includes(searchTermLower) ||
-                   keywords.includes(searchTermLower) ||
-                   category.includes(searchTermLower);
+            const title = normalizeText(doc.title || "");
+            const description = normalizeText(doc.description || "");
+            const keywords = Array.isArray(doc.keywords) 
+              ? normalizeText(doc.keywords.join(" ")) 
+              : "";
+            const category = normalizeText(doc.category || "");
+            
+            return title.includes(searchTermNormalized) ||
+                   description.includes(searchTermNormalized) ||
+                   keywords.includes(searchTermNormalized) ||
+                   category.includes(searchTermNormalized);
           });
           
           // Continue with filtered documents
@@ -543,18 +575,28 @@ export function useDocuments(filters?: DocumentFilters, options?: { enabled?: bo
       // If searchTerm was provided but textSearch might not have worked properly,
       // apply JavaScript filtering as additional check (only if needed)
       if (filters?.searchTerm && filters.searchTerm.trim() && documents.length > 0) {
-        const searchTermLower = filters.searchTerm.trim().toLowerCase();
-        const searchTerms = searchTermLower.split(/\s+/).filter(t => t.length > 0);
+        // Normalize search term to remove accents (e.g., "plastico" matches "plástico")
+        const normalizeText = (text: string) => {
+          if (!text) return "";
+          return text
+            .trim()
+            .toLowerCase()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "");
+        };
+        
+        const searchTermNormalized = normalizeText(filters.searchTerm);
+        const searchTerms = searchTermNormalized.split(/\s+/).filter(t => t.length > 0);
         
         // Only apply JavaScript filter if we have search terms
         if (searchTerms.length > 0) {
           documents = documents.filter((doc: any) => {
-            const title = (doc.title || "").toLowerCase();
-            const description = (doc.description || "").toLowerCase();
+            const title = normalizeText(doc.title || "");
+            const description = normalizeText(doc.description || "");
             const keywords = Array.isArray(doc.keywords) 
-              ? doc.keywords.join(" ").toLowerCase() 
+              ? normalizeText(doc.keywords.join(" ")) 
               : "";
-            const category = (doc.category || "").toLowerCase();
+            const category = normalizeText(doc.category || "");
             const searchText = `${title} ${description} ${keywords} ${category}`;
             
             // All search terms must be found

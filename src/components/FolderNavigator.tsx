@@ -211,18 +211,6 @@ export function FolderNavigator({ onDocumentOpen, categoryFilter, searchTerm, on
             )}
           </Button>
 
-          {/* View Filter Buttons - Only show "Apenas Documentos" when not in recursive mode */}
-          {!showAllDocumentsRecursive && contents.documents.length > 0 && (
-            <Button
-              variant={viewFilter === "documents" ? "default" : "outline"}
-              size="sm"
-              onClick={() => setViewFilter(viewFilter === "documents" ? "all" : "documents")}
-              className={`h-7 px-3 text-xs ${viewFilter === "documents" ? "bg-cyan/20 text-cyan border-cyan/30" : ""}`}
-            >
-              <FileText className="h-3 w-3 mr-1" />
-              Apenas Documentos ({contents.documents.length})
-            </Button>
-          )}
         </div>
       )}
 

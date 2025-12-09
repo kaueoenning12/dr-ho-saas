@@ -4,14 +4,23 @@ import type { Database } from "@/integrations/supabase/types";
 import { fetchDocumentsStats, type DocumentStats } from "./useDocumentsQuery";
 
 /**
- * Normalize category name for comparison (remove accents, lowercase, trim)
+ * Normalize text for comparison (remove accents, lowercase, trim)
+ * This allows searching "plastico" to find "plástico"
  */
-function normalizeCategoryName(name: string): string {
-  return name
+function normalizeText(text: string): string {
+  if (!text) return "";
+  return text
     .trim()
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, ""); // Remove accents
+}
+
+/**
+ * Normalize category name for comparison (remove accents, lowercase, trim)
+ */
+function normalizeCategoryName(name: string): string {
+  return normalizeText(name);
 }
 
 type Folder = Database["public"]["Tables"]["document_folders"]["Row"];
@@ -24,7 +33,8 @@ async function searchAllContents(searchTerm: string, categoryFilter?: string): P
   
   // 1. Search documents using textSearch on search_vector (with JavaScript fallback)
   let allDocuments: any[] = [];
-  const searchTermLower = searchTerm.toLowerCase();
+  // Normalize search term to remove accents (e.g., "plastico" matches "plástico")
+  const searchTermNormalized = normalizeText(searchTerm);
   
   try {
     // Try textSearch first
@@ -49,20 +59,21 @@ async function searchAllContents(searchTerm: string, categoryFilter?: string): P
         allDocuments = [];
       } else {
         // Filter in JavaScript: search in title, description, keywords, category, and file URL
+        // Normalize both search term and document fields to handle accents
         allDocuments = (allDocsData || []).filter((doc: any) => {
-          const title = (doc.title || "").toLowerCase();
-          const description = (doc.description || "").toLowerCase();
+          const title = normalizeText(doc.title || "");
+          const description = normalizeText(doc.description || "");
           const keywords = Array.isArray(doc.keywords) 
-            ? doc.keywords.join(" ").toLowerCase() 
+            ? normalizeText(doc.keywords.join(" ")) 
             : "";
-          const category = (doc.category || "").toLowerCase();
-          const pdfUrl = (doc.pdf_url || "").toLowerCase();
+          const category = normalizeText(doc.category || "");
+          const pdfUrl = normalizeText(doc.pdf_url || "");
           
-          return title.includes(searchTermLower) ||
-                 description.includes(searchTermLower) ||
-                 keywords.includes(searchTermLower) ||
-                 category.includes(searchTermLower) ||
-                 pdfUrl.includes(searchTermLower);
+          return title.includes(searchTermNormalized) ||
+                 description.includes(searchTermNormalized) ||
+                 keywords.includes(searchTermNormalized) ||
+                 category.includes(searchTermNormalized) ||
+                 pdfUrl.includes(searchTermNormalized);
         });
         console.log(`[Search] JavaScript fallback found ${allDocuments.length} documents matching "${searchTerm}"`);
         if (allDocuments.length > 0) {
@@ -83,20 +94,21 @@ async function searchAllContents(searchTerm: string, categoryFilter?: string): P
       
       if (!allDocsError && allDocsData) {
         // Filter in JavaScript to find additional matches
+        // Normalize both search term and document fields to handle accents
         const jsSearchResults = (allDocsData || []).filter((doc: any) => {
-          const title = (doc.title || "").toLowerCase();
-          const description = (doc.description || "").toLowerCase();
+          const title = normalizeText(doc.title || "");
+          const description = normalizeText(doc.description || "");
           const keywords = Array.isArray(doc.keywords) 
-            ? doc.keywords.join(" ").toLowerCase() 
+            ? normalizeText(doc.keywords.join(" ")) 
             : "";
-          const category = (doc.category || "").toLowerCase();
-          const pdfUrl = (doc.pdf_url || "").toLowerCase();
+          const category = normalizeText(doc.category || "");
+          const pdfUrl = normalizeText(doc.pdf_url || "");
           
-          return title.includes(searchTermLower) ||
-                 description.includes(searchTermLower) ||
-                 keywords.includes(searchTermLower) ||
-                 category.includes(searchTermLower) ||
-                 pdfUrl.includes(searchTermLower);
+          return title.includes(searchTermNormalized) ||
+                 description.includes(searchTermNormalized) ||
+                 keywords.includes(searchTermNormalized) ||
+                 category.includes(searchTermNormalized) ||
+                 pdfUrl.includes(searchTermNormalized);
         });
         
         console.log(`[Search] JavaScript search found ${jsSearchResults.length} documents matching "${searchTerm}"`);
@@ -144,20 +156,21 @@ async function searchAllContents(searchTerm: string, categoryFilter?: string): P
         allDocuments = [];
       } else {
         // Filter in JavaScript: search in title, description, keywords, category, and file URL
+        // Normalize both search term and document fields to handle accents
         allDocuments = (allDocsData || []).filter((doc: any) => {
-          const title = (doc.title || "").toLowerCase();
-          const description = (doc.description || "").toLowerCase();
+          const title = normalizeText(doc.title || "");
+          const description = normalizeText(doc.description || "");
           const keywords = Array.isArray(doc.keywords) 
-            ? doc.keywords.join(" ").toLowerCase() 
+            ? normalizeText(doc.keywords.join(" ")) 
             : "";
-          const category = (doc.category || "").toLowerCase();
-          const pdfUrl = (doc.pdf_url || "").toLowerCase();
+          const category = normalizeText(doc.category || "");
+          const pdfUrl = normalizeText(doc.pdf_url || "");
           
-          return title.includes(searchTermLower) ||
-                 description.includes(searchTermLower) ||
-                 keywords.includes(searchTermLower) ||
-                 category.includes(searchTermLower) ||
-                 pdfUrl.includes(searchTermLower);
+          return title.includes(searchTermNormalized) ||
+                 description.includes(searchTermNormalized) ||
+                 keywords.includes(searchTermNormalized) ||
+                 category.includes(searchTermNormalized) ||
+                 pdfUrl.includes(searchTermNormalized);
         });
         console.log(`[Search] JavaScript fallback found ${allDocuments.length} documents matching "${searchTerm}"`);
         if (allDocuments.length > 0) {
@@ -191,9 +204,11 @@ async function searchAllContents(searchTerm: string, categoryFilter?: string): P
     if (foldersError) {
       console.error("[Search] Error fetching folders:", foldersError);
     } else {
-      const searchTermLower = searchTerm.toLowerCase();
+      // Normalize search term to remove accents
+      const searchTermNormalizedForFolders = normalizeText(searchTerm);
       matchingFolders = (allFolders || []).filter((folder: Folder) => {
-        return folder.name.toLowerCase().includes(searchTermLower);
+        const folderName = normalizeText(folder.name);
+        return folderName.includes(searchTermNormalizedForFolders);
       }) as Folder[];
       console.log(`[Search] Found ${matchingFolders.length} folders matching "${searchTerm}"`);
     }

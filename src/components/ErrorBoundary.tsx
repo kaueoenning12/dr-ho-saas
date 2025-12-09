@@ -1,4 +1,5 @@
 import { Component, ReactNode } from "react";
+import { logReactError } from "@/lib/services/errorLogger";
 
 interface Props {
   children: ReactNode;
@@ -21,6 +22,11 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: any) {
     console.error("ErrorBoundary caught an error:", error, errorInfo);
+    
+    // Enviar erro para o webhook
+    logReactError(error, errorInfo, {
+      isChunkError: error.message?.includes('Failed to fetch dynamically imported module'),
+    });
     
     // Log additional diagnostic info for chunk loading errors
     if (error.message?.includes('Failed to fetch dynamically imported module')) {

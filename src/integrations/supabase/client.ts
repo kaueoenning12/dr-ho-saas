@@ -26,11 +26,7 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
   }
 });
 
-// Log apenas em desenvolvimento
+// Log apenas em desenvolvimento (sem expor URL sensível)
 if (import.meta.env.DEV) {
-  console.log("🔧 [SUPABASE] Cliente configurado:", {
-    url: SUPABASE_URL,
-    hasKey: !!SUPABASE_PUBLISHABLE_KEY,
-    env: import.meta.env.MODE
-  });
+  console.log("🔧 [SUPABASE] Cliente configurado");
 }

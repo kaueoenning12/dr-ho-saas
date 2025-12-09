@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Loader2, Shield, FileText, Home, MessageSquare, MessageCircle, Megaphone, Lightbulb, CreditCard, Settings, Download, Heart, Eye } from "lucide-react";
 import { SidebarProvider, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
@@ -7,6 +7,7 @@ import { MobileSidebar } from "@/components/layout/MobileSidebar";
 import { UserProfileMenu } from "@/components/layout/UserProfileMenu";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { mockDocumentContents } from "@/lib/mockData";
@@ -41,27 +42,58 @@ function DocumentViewContent() {
 
   // Track document view
   const trackViewMutation = useTrackDocumentView();
-  const [hasTrackedView, setHasTrackedView] = useState(false);
+  const trackedDocumentIdsRef = useRef<Set<string>>(new Set());
 
-  // Track view when document is loaded (only once per session)
+  // Check if we should show comments from URL or sessionStorage
   useEffect(() => {
-    if (document && !hasTrackedView && user) {
-      trackViewMutation.mutate(document.id, {
+    const shouldShowComments = sessionStorage.getItem(`showComments:${id}`) === 'true';
+    if (shouldShowComments) {
+      setShowComments(true);
+      sessionStorage.removeItem(`showComments:${id}`);
+    }
+  }, [id]);
+
+  // Track view when document is loaded
+  // Registra visualização apenas quando o documento é carregado pela primeira vez
+  // Não registra em re-renders causados por outras ações (like, comentários, etc)
+  useEffect(() => {
+    if (!document || !id) return;
+    
+    // Verificar se já foi registrado para este documento específico
+    // Usar Set para rastrear múltiplos documentos (caso o usuário navegue entre documentos)
+    if (trackedDocumentIdsRef.current.has(document.id)) {
+      return; // Já foi registrado para este documento, não registrar novamente
+    }
+
+    // Marcar como registrado ANTES de fazer a chamada
+    trackedDocumentIdsRef.current.add(document.id);
+    
+    // Registrar visualização apenas uma vez por carregamento do documento
+    trackViewMutation.mutate(
+      { documentId: document.id, userId: user?.id || null },
+      {
         onSuccess: () => {
-          setHasTrackedView(true);
+          // Visualização registrada com sucesso
         },
         onError: (error) => {
+          // Em caso de erro, permitir nova tentativa removendo a marcação
+          trackedDocumentIdsRef.current.delete(document.id);
           console.error("Error tracking view:", error);
         },
-      });
-    }
-  }, [document, user, hasTrackedView, trackViewMutation]);
+      }
+    );
+  }, [document?.id, id]); // Apenas document?.id e id nas dependências - não incluir trackViewMutation ou user?.id
 
   // Document likes
   const { data: totalLikes = 0, isLoading: isLoadingLikes } = useDocumentLikes(id ?? "");
   const { data: userLike, isLoading: isLoadingUserLike } = useUserDocumentLike(id ?? "", user?.id);
   const toggleLikeMutation = useToggleDocumentLike();
   const [liked, setLiked] = useState(false);
+
+  // Reset liked state when document changes
+  useEffect(() => {
+    setLiked(false);
+  }, [id]);
 
   // Sync liked state with database
   useEffect(() => {
@@ -273,6 +305,10 @@ function DocumentViewContent() {
     }
 
     if (!id) return;
+
+    if (toggleLikeMutation.isPending) {
+      return; // Prevent double clicks
+    }
 
     // Optimistic update
     const wasLiked = liked;
@@ -610,9 +646,21 @@ function DocumentViewContent() {
             )}
           </div>
 
-          {/* Comments section - only show when button is clicked */}
-          {document && !shouldShowUnlockScreen && showComments && (
-            <DocumentComments documentId={document.id} />
+          {/* Comments Dialog - opens as modal over the document */}
+          {document && !shouldShowUnlockScreen && (
+            <Dialog open={showComments} onOpenChange={setShowComments}>
+              <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col p-0">
+                <DialogHeader className="px-6 pt-6 pb-4 border-b">
+                  <DialogTitle className="flex items-center gap-2">
+                    <MessageCircle className="h-5 w-5 text-cyan" />
+                    Comentários ({document.comments || 0})
+                  </DialogTitle>
+                </DialogHeader>
+                <div className="overflow-y-auto flex-1 px-6 py-4">
+                  <DocumentComments documentId={document.id} />
+                </div>
+              </DialogContent>
+            </Dialog>
           )}
       </main>
     </div>

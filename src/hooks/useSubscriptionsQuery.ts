@@ -11,7 +11,7 @@ export function useSubscriptionPlans() {
   return useQuery({
     queryKey: ["subscription-plans"],
     queryFn: async () => {
-      console.log("🔍 [SUBSCRIPTIONS] Buscando planos ativos...");
+      // Log removido para não expor informações sensíveis
       const { data, error } = await supabase
         .from("subscription_plans")
         .select("*")
@@ -19,24 +19,8 @@ export function useSubscriptionPlans() {
         .order("price", { ascending: true });
 
       if (error) {
-        console.error("❌ [SUBSCRIPTIONS] Erro ao buscar planos:", error);
+        // Log removido para não expor erros sensíveis
         throw error;
-      }
-
-      // Log dos dados retornados para debug
-      if (data && data.length > 0) {
-        console.log(`✅ [SUBSCRIPTIONS] ${data.length} plano(s) encontrado(s):`, 
-          data.map(plan => ({
-            id: plan.id,
-            name: plan.name,
-            price: plan.price,
-            stripe_product_id: plan.stripe_product_id || "não configurado",
-            stripe_price_id: plan.stripe_price_id || "não configurado",
-            is_active: plan.is_active
-          }))
-        );
-      } else {
-        console.warn("⚠️ [SUBSCRIPTIONS] Nenhum plano ativo encontrado");
       }
 
       return (data || []) as SubscriptionPlan[];

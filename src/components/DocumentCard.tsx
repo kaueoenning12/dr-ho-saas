@@ -36,19 +36,24 @@ export const DocumentCard = memo(function DocumentCard({
   // Estado local sincronizado com props
   const [liked, setLiked] = useState(initialIsLiked);
   const [likes, setLikes] = useState(initialLikesCount ?? document.likes);
+  const [isUpdating, setIsUpdating] = useState(false);
 
-  // Sincronizar estado com props quando mudarem
+  // Sincronizar estado com props quando mudarem (mas não durante atualização)
   useEffect(() => {
-    setLiked(initialIsLiked);
-  }, [initialIsLiked]);
-
-  useEffect(() => {
-    if (initialLikesCount !== undefined) {
-      setLikes(initialLikesCount);
-    } else {
-      setLikes(document.likes);
+    if (!isUpdating) {
+      setLiked(initialIsLiked);
     }
-  }, [initialLikesCount, document.likes]);
+  }, [initialIsLiked, isUpdating]);
+
+  useEffect(() => {
+    if (!isUpdating) {
+      if (initialLikesCount !== undefined) {
+        setLikes(initialLikesCount);
+      } else {
+        setLikes(document.likes);
+      }
+    }
+  }, [initialLikesCount, document.likes, isUpdating]);
 
   const handleLike = useCallback(async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -58,11 +63,16 @@ export const DocumentCard = memo(function DocumentCard({
       return;
     }
 
+    if (isUpdating) {
+      return; // Prevent double clicks
+    }
+
     // Otimistic update
     const wasLiked = liked;
     const previousLikes = likes;
+    setIsUpdating(true);
     setLiked(!wasLiked);
-    setLikes(wasLiked ? likes - 1 : likes + 1);
+    setLikes(wasLiked ? Math.max(0, likes - 1) : likes + 1);
 
     try {
       const newLikedState = await toggleLikeMutation.mutateAsync({
@@ -72,22 +82,34 @@ export const DocumentCard = memo(function DocumentCard({
 
       // Atualizar estado com resultado real
       setLiked(newLikedState);
+      // Reset updating flag after a short delay to allow queries to refetch
+      setTimeout(() => {
+        setIsUpdating(false);
+      }, 500);
     } catch (error: any) {
       // Reverter em caso de erro
       setLiked(wasLiked);
       setLikes(previousLikes);
+      setIsUpdating(false);
       toast.error("Erro ao curtir relatório. Tente novamente.");
       console.error("Erro ao dar like:", error);
     }
-  }, [user, liked, likes, document.id, toggleLikeMutation]);
+  }, [user, liked, likes, document.id, toggleLikeMutation, isUpdating]);
 
   const handleOpen = useCallback(() => {
     onOpen(document);
   }, [onOpen, document]);
 
+  const handleCommentsClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    // Store in sessionStorage that comments should be shown
+    sessionStorage.setItem(`showComments:${document.id}`, 'true');
+    handleOpen();
+  }, [document.id, handleOpen]);
+
   return (
     <Card
-        className={`group cursor-pointer border shadow-elegant hover:shadow-cyan hover:border-cyan/30 transition-all duration-300 hover:-translate-y-1 hover:scale-[1.02] active:scale-[0.98] bg-card relative select-none shimmer-effect ${
+        className={`group cursor-pointer border shadow-elegant hover:shadow-cyan hover:border-cyan/30 transition-all duration-300 hover:-translate-y-1 hover:scale-[1.02] active:scale-[0.98] bg-card relative select-none shimmer-effect flex flex-col h-full ${
           isNew ? "border-cyan/30 ring-1 ring-cyan/20" : isPremium ? "border-yellow-500/30 ring-1 ring-yellow-500/20" : "border-navy/8"
         } ${isLocked ? "opacity-75" : ""}`}
         style={{
@@ -140,7 +162,7 @@ export const DocumentCard = memo(function DocumentCard({
         </CardDescription>
       </CardHeader>
 
-        <CardContent className="px-4 sm:px-6 pb-3 sm:pb-4 select-none pointer-events-none">
+        <CardContent className="px-4 sm:px-6 pb-3 sm:pb-4 select-none pointer-events-none flex-1">
         <div className="flex flex-wrap gap-1 sm:gap-1.5">
           {document.keywords.slice(0, 4).map((keyword) => (
             <Badge
@@ -154,7 +176,7 @@ export const DocumentCard = memo(function DocumentCard({
         </div>
         </CardContent>
 
-        <CardFooter className="flex items-center justify-between px-4 sm:px-6 pb-4 sm:pb-5 pt-1.5 sm:pt-2 text-[12px] sm:text-[13px] text-cyan/70 border-t border-cyan/10 select-none">
+        <CardFooter className="flex items-center justify-between px-4 sm:px-6 pb-4 sm:pb-5 pt-1.5 sm:pt-2 text-[12px] sm:text-[13px] text-cyan/70 border-t border-cyan/10 select-none mt-auto">
         <div className="flex items-center gap-2 sm:gap-4">
           {/* Ícones menores em mobile */}
           <div className="flex items-center gap-1 sm:gap-1.5 pointer-events-none">
@@ -164,7 +186,7 @@ export const DocumentCard = memo(function DocumentCard({
           <button
             onClick={handleLike}
             disabled={toggleLikeMutation.isPending || !user}
-            className="group/like flex items-center gap-1 sm:gap-1.5 hover:text-aqua transition-all duration-300 active:scale-90 pointer-events-auto disabled:opacity-50 disabled:cursor-not-allowed"
+            className="group/like flex items-center gap-1 sm:gap-1.5 hover:text-aqua transition-all duration-300 active:scale-90 disabled:opacity-50 disabled:cursor-not-allowed z-10 relative"
           >
             <Heart className={`h-3.5 sm:h-4 w-3.5 sm:w-4 stroke-[1.5] transition-all duration-300 ${
               liked 
@@ -173,10 +195,13 @@ export const DocumentCard = memo(function DocumentCard({
             }`} />
             <span className="font-light text-[11px] sm:text-[13px] transition-all duration-300">{likes}</span>
           </button>
-          <div className="flex items-center gap-1 sm:gap-1.5 pointer-events-none">
-            <MessageCircle className="h-3.5 sm:h-4 w-3.5 sm:w-4 stroke-[1.5]" />
-            <span className="font-light text-[11px] sm:text-[13px]">{document.comments}</span>
-          </div>
+          <button
+            onClick={handleCommentsClick}
+            className="group/comments flex items-center gap-1 sm:gap-1.5 hover:text-aqua transition-all duration-300 active:scale-90 z-10 relative"
+          >
+            <MessageCircle className="h-3.5 sm:h-4 w-3.5 sm:w-4 stroke-[1.5] transition-all duration-300 group-hover/comments:scale-110" />
+            <span className="font-light text-[11px] sm:text-[13px] transition-all duration-300">{document.comments}</span>
+          </button>
         </div>
           <span className="text-[10px] sm:text-[12px] font-light text-muted-foreground pointer-events-none">
             {new Date(document.publishedAt).toLocaleDateString("pt-BR")}

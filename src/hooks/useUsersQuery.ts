@@ -8,7 +8,7 @@ export function useUsers() {
   return useQuery({
     queryKey: ["users"],
     queryFn: async () => {
-      console.log("🔍 [USERS] Buscando todos os usuários...");
+      // Log removido para não expor informações sensíveis
       
       // 1. Buscar profiles
       const { data: profiles, error: profilesError } = await supabase
@@ -17,12 +17,11 @@ export function useUsers() {
         .order("created_at", { ascending: false });
 
       if (profilesError) {
-        console.error("❌ [USERS] Erro ao buscar profiles:", profilesError);
+        // Log removido para não expor erros sensíveis
         throw profilesError;
       }
 
       if (!profiles || profiles.length === 0) {
-        console.log("✅ [USERS] Nenhum usuário encontrado");
         return [];
       }
 
@@ -33,7 +32,10 @@ export function useUsers() {
         .select("user_id, role")
         .in("user_id", userIds);
 
-      if (rolesError) console.error("⚠️ [USERS] Erro ao buscar roles:", rolesError);
+      // Log removido para não expor erros sensíveis
+      if (rolesError) {
+        // Silenciar erro de roles
+      }
 
       // 3. Buscar subscriptions de todos os usuários
       const { data: subscriptions, error: subsError } = await supabase
@@ -41,7 +43,10 @@ export function useUsers() {
         .select("user_id, status, plan_id, started_at, expires_at")
         .in("user_id", userIds);
 
-      if (subsError) console.error("⚠️ [USERS] Erro ao buscar subscriptions:", subsError);
+      // Log removido para não expor erros sensíveis
+      if (subsError) {
+        // Silenciar erro de subscriptions
+      }
 
       // 4. Juntar dados
       const users = profiles.map(profile => ({
@@ -49,8 +54,6 @@ export function useUsers() {
         user_roles: roles?.filter(r => r.user_id === profile.user_id) || [],
         user_subscriptions: subscriptions?.filter(s => s.user_id === profile.user_id) || []
       }));
-
-      console.log("✅ [USERS] Usuários encontrados:", users.length);
       return users;
     },
   });

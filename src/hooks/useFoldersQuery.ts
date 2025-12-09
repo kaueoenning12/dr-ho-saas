@@ -306,6 +306,134 @@ export interface FolderContents {
   documents: Database["public"]["Tables"]["documents"]["Row"][];
 }
 
+export interface FolderItemCounts {
+  documents: number;
+  subfolders: number;
+}
+
+/**
+ * Get count of documents and subfolders in a folder
+ */
+export async function getFolderItemCounts(folderId: string): Promise<FolderItemCounts> {
+  const [documentsResult, subfoldersResult] = await Promise.all([
+    supabase
+      .from("documents")
+      .select("id", { count: "exact", head: true })
+      .eq("parent_folder_id", folderId)
+      .eq("is_published", true),
+    supabase
+      .from("document_folders")
+      .select("id", { count: "exact", head: true })
+      .eq("parent_folder_id", folderId)
+  ]);
+
+  return {
+    documents: documentsResult.count || 0,
+    subfolders: subfoldersResult.count || 0,
+  };
+}
+
+/**
+ * Get all documents recursively from a folder and all its subfolders
+ */
+export async function getRecursiveDocuments(
+  folderId: string | null,
+  categoryFilter?: string
+): Promise<Database["public"]["Tables"]["documents"]["Row"][]> {
+  // Get all folder IDs (current folder + all subfolders)
+  let allFolderIds: string[] = [];
+  
+  if (folderId === null) {
+    // For root, get all root folders and their subfolders
+    const { data: rootFolders } = await supabase
+      .from("document_folders")
+      .select("id")
+      .is("parent_folder_id", null);
+    
+    if (rootFolders && rootFolders.length > 0) {
+      const rootFolderIds = rootFolders.map(f => f.id);
+      allFolderIds = await getAllSubfolderIds(rootFolderIds);
+      // Include root folder IDs as well
+      allFolderIds.push(...rootFolderIds);
+    }
+  } else {
+    // Get current folder and all subfolders
+    allFolderIds = await getAllSubfolderIds([folderId]);
+    allFolderIds.push(folderId);
+  }
+
+  // Build query for documents
+  let documentsQuery = supabase
+    .from("documents")
+    .select("*")
+    .eq("is_published", true);
+
+  // Filter by folder IDs
+  if (folderId === null) {
+    // For root, get documents with null parent_folder_id OR in any root folder/subfolder
+    if (allFolderIds.length > 0) {
+      // Use OR condition to get both root documents and documents in folders
+      documentsQuery = documentsQuery.or(`parent_folder_id.is.null,parent_folder_id.in.(${allFolderIds.join(",")})`);
+    } else {
+      // No folders exist, only get root documents
+      documentsQuery = documentsQuery.is("parent_folder_id", null);
+    }
+  } else {
+    // For specific folder, get documents in that folder and all subfolders
+    documentsQuery = documentsQuery.in("parent_folder_id", allFolderIds);
+  }
+
+  const { data: documents, error } = await documentsQuery.order("title", { ascending: true });
+
+  if (error) {
+    console.error("[getRecursiveDocuments] Error fetching documents:", error);
+    return [];
+  }
+
+  let filteredDocuments = documents || [];
+
+  // Apply category filter if provided
+  if (categoryFilter && categoryFilter !== "Todas") {
+    const categoryFilterNormalized = normalizeCategoryName(categoryFilter);
+    filteredDocuments = filteredDocuments.filter((doc) => {
+      const docCategoryNormalized = normalizeCategoryName(doc.category || "");
+      return docCategoryNormalized === categoryFilterNormalized;
+    });
+  }
+
+  // Fetch statistics for documents (views, likes, comments)
+  const documentIds = filteredDocuments.map((doc) => doc.id);
+  const stats = await fetchDocumentsStats(documentIds);
+
+  // Add statistics to each document
+  const documentsWithStats = filteredDocuments.map((doc) => {
+    const docStats = stats[doc.id] || { views: 0, likes: 0, comments: 0 };
+    return {
+      ...doc,
+      views: docStats.views,
+      likes: docStats.likes,
+      comments: docStats.comments,
+    };
+  });
+
+  return documentsWithStats;
+}
+
+/**
+ * Hook to fetch recursive documents from a folder and all its subfolders
+ */
+export function useRecursiveDocuments(
+  folderId: string | null,
+  categoryFilter?: string
+) {
+  return useQuery({
+    queryKey: ["recursive-documents", folderId, categoryFilter],
+    queryFn: () => getRecursiveDocuments(folderId, categoryFilter),
+    staleTime: 2 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+}
+
 /**
  * Fetch folders (root folders or children of a specific folder)
  */

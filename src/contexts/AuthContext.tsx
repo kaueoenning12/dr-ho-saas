@@ -278,11 +278,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             const result = await withTimeout(query as unknown as Promise<any>);
             
             if (result?.data) {
-              console.log('[AUTH] Subscription encontrada:', {
-                planId: result.data.plan_id,
-                planName: result.data.subscription_plans?.name,
-                status: result.data.status,
-              });
+              // Log removido para não expor dados sensíveis de assinatura
+              if (import.meta.env.DEV) {
+                console.log('[AUTH] Subscription encontrada');
+              }
               
               // Atualizar user quando subscription carregar
               if (currentUserRef.current) {
@@ -406,8 +405,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       async (event, session) => {
         if (!mounted) return;
         
-        // Log auth state changes to help debug reloads
-        console.log('[AUTH] Auth state changed:', event, session?.user?.id);
+        // Log auth state changes apenas em desenvolvimento (sem expor ID do usuário)
+        if (import.meta.env.DEV) {
+          console.log('[AUTH] Auth state changed:', event);
+        }
         
         // OTIMIZAÇÃO 3: Ignorar INITIAL_SESSION (já tratado por getSession)
         if (event === 'INITIAL_SESSION') {
@@ -587,10 +588,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
               .maybeSingle();
 
             if (subscription) {
-              console.log('[AUTH] refreshSubscription: Subscription atualizada com sucesso', {
-                planId: subscription.plan_id,
-                status: subscription.status,
-              });
+              // Log removido para não expor dados sensíveis
+              if (import.meta.env.DEV) {
+                console.log('[AUTH] refreshSubscription: Subscription atualizada com sucesso');
+              }
               
               // Invalidar cache do React Query para forçar atualização em todos os componentes
               queryClient.invalidateQueries({ queryKey: ["user-subscription"] });

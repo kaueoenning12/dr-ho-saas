@@ -1,11 +1,21 @@
 import { useState } from "react";
-import { MessageCircle, Send, Loader2 } from "lucide-react";
+import { MessageCircle, Send, Loader2, Edit2, Trash2, X, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/AuthContext";
-import { useDocumentComments, useCreateComment } from "@/hooks/useDocumentsQuery";
+import { useDocumentComments, useCreateComment, useUpdateComment, useDeleteComment } from "@/hooks/useDocumentsQuery";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface DocumentCommentsProps {
   documentId: string;
@@ -14,8 +24,13 @@ interface DocumentCommentsProps {
 export function DocumentComments({ documentId }: DocumentCommentsProps) {
   const { user } = useAuth();
   const [commentText, setCommentText] = useState("");
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editingText, setEditingText] = useState("");
+  const [deleteCommentId, setDeleteCommentId] = useState<string | null>(null);
   const { data: comments = [], isLoading } = useDocumentComments(documentId);
   const createCommentMutation = useCreateComment();
+  const updateCommentMutation = useUpdateComment();
+  const deleteCommentMutation = useDeleteComment();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -76,15 +91,52 @@ export function DocumentComments({ documentId }: DocumentCommentsProps) {
       .slice(0, 2);
   };
 
+  const handleEdit = (comment: any) => {
+    setEditingCommentId(comment.id);
+    setEditingText(comment.content);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingCommentId(null);
+    setEditingText("");
+  };
+
+  const handleSaveEdit = async (commentId: string) => {
+    if (!editingText.trim()) {
+      toast.error("O comentário não pode estar vazio");
+      return;
+    }
+
+    try {
+      await updateCommentMutation.mutateAsync({
+        commentId,
+        content: editingText.trim(),
+        documentId,
+      });
+      setEditingCommentId(null);
+      setEditingText("");
+    } catch (error) {
+      // Error is already handled by the mutation
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteCommentId) return;
+
+    try {
+      await deleteCommentMutation.mutateAsync({
+        commentId: deleteCommentId,
+        documentId,
+      });
+      setDeleteCommentId(null);
+    } catch (error) {
+      // Error is already handled by the mutation
+    }
+  };
+
   return (
-    <div className="border-t border-cyan/10 bg-background">
-      <div className="max-w-4xl mx-auto p-4 sm:p-6">
-        <div className="flex items-center gap-2 mb-6">
-          <MessageCircle className="h-5 w-5 text-cyan" />
-          <h2 className="text-xl font-semibold text-foreground">
-            Comentários ({comments.length})
-          </h2>
-        </div>
+    <div className="bg-background">
+      <div className="space-y-6">
 
         {/* Formulário de comentário */}
         {user && (
@@ -151,6 +203,7 @@ export function DocumentComments({ documentId }: DocumentCommentsProps) {
             {comments.map((comment: any) => {
               const profile = comment.profiles;
               const isOwnComment = user?.id === comment.user_id;
+              const isEditing = editingCommentId === comment.id;
               
               return (
                 <div
@@ -171,12 +224,76 @@ export function DocumentComments({ documentId }: DocumentCommentsProps) {
                         </p>
                         <p className="text-xs text-muted-foreground">
                           {formatDate(comment.created_at)}
+                          {comment.updated_at && comment.updated_at !== comment.created_at && (
+                            <span className="ml-1">(editado)</span>
+                          )}
                         </p>
                       </div>
+                      {isOwnComment && !isEditing && (
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEdit(comment)}
+                            className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                          >
+                            <Edit2 className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setDeleteCommentId(comment.id)}
+                            className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      )}
                     </div>
-                    <p className="text-sm text-foreground whitespace-pre-wrap break-words">
-                      {comment.content}
-                    </p>
+                    {isEditing ? (
+                      <div className="space-y-2">
+                        <Textarea
+                          value={editingText}
+                          onChange={(e) => setEditingText(e.target.value)}
+                          className="min-h-[80px] resize-none border-cyan/20 focus:border-cyan"
+                          disabled={updateCommentMutation.isPending}
+                        />
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={handleCancelEdit}
+                            disabled={updateCommentMutation.isPending}
+                            className="h-8"
+                          >
+                            <X className="h-3.5 w-3.5 mr-1" />
+                            Cancelar
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => handleSaveEdit(comment.id)}
+                            disabled={updateCommentMutation.isPending || !editingText.trim()}
+                            className="h-8 bg-cyan hover:bg-cyan/90 text-white"
+                          >
+                            {updateCommentMutation.isPending ? (
+                              <>
+                                <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+                                Salvando...
+                              </>
+                            ) : (
+                              <>
+                                <Check className="h-3.5 w-3.5 mr-1" />
+                                Salvar
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-foreground whitespace-pre-wrap break-words">
+                        {comment.content}
+                      </p>
+                    )}
                   </div>
                 </div>
               );
@@ -184,6 +301,37 @@ export function DocumentComments({ documentId }: DocumentCommentsProps) {
           </div>
         )}
       </div>
+
+      {/* Dialog de confirmação de exclusão */}
+      <AlertDialog open={!!deleteCommentId} onOpenChange={(open) => !open && setDeleteCommentId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir comentário?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação não pode ser desfeita. O comentário será permanentemente removido.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteCommentMutation.isPending}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={deleteCommentMutation.isPending}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              {deleteCommentMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Excluindo...
+                </>
+              ) : (
+                "Excluir"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

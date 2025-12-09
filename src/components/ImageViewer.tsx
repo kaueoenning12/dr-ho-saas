@@ -24,6 +24,7 @@ export function ImageViewer({ document }: ImageViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   // Calculate optimal scale with fixed padding (margem superior fixa)
   const calculateOptimalScale = (): number | null => {

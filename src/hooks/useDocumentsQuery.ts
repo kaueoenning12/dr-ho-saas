@@ -32,6 +32,10 @@ export interface DocumentStats {
   comments: number;
 }
 
+// Flag global para cachear se a função RPC existe (evita tentativas repetidas)
+let rpcFunctionChecked = false;
+let rpcFunctionExists = false;
+
 // Fetch statistics for multiple documents using aggregation
 export async function fetchDocumentsStats(documentIds: string[]): Promise<Record<string, DocumentStats>> {
   if (documentIds.length === 0) return {};
@@ -42,119 +46,215 @@ export async function fetchDocumentsStats(documentIds: string[]): Promise<Record
     stats[id] = { views: 0, likes: 0, comments: 0 };
   });
 
-// OTIMIZAÇÃO: Usar método com queries paralelas para estatísticas
+  // OTIMIZAÇÃO: Tentar usar função RPC primeiro (muito mais eficiente)
+  // Se não estiver disponível, usar fallback com queries diretas
+  // Nota: A função RPC pode não existir no banco, então vamos tentar apenas uma vez
+  // e cachear o resultado para evitar erros 400 repetidos no console
+  if (!rpcFunctionChecked || rpcFunctionExists) {
+    try {
+      const { data: rpcData, error: rpcError } = await supabase.rpc("get_document_stats", {
+        document_ids: documentIds,
+      });
 
-  // MÉTODO OTIMIZADO: Fazer queries paralelas mas processar de forma mais eficiente
-  // Processar em lotes se houver muitos documentos para evitar timeouts
-  const BATCH_SIZE = 50; // Processar até 50 documentos por vez
+      // Verificar se a função existe e retornou dados válidos
+      if (!rpcError && rpcData && Array.isArray(rpcData)) {
+        // Função RPC disponível e funcionando - usar dados dela
+        rpcData.forEach((row: { document_id: string; views: number; likes: number; comments: number }) => {
+          if (stats[row.document_id]) {
+            stats[row.document_id] = {
+              views: Number(row.views) || 0,
+              likes: Number(row.likes) || 0,
+              comments: Number(row.comments) || 0,
+            };
+          }
+        });
+        // Marcar que a função existe para próximas chamadas
+        rpcFunctionChecked = true;
+        rpcFunctionExists = true;
+        return stats;
+      }
+      
+      // Se erro, marcar como não disponível e usar fallback
+      if (rpcError) {
+        // Marcar que a função não existe para evitar tentativas futuras
+        rpcFunctionChecked = true;
+        rpcFunctionExists = false;
+        // Não logar erro - isso é esperado se a função não existe
+      }
+    } catch (rpcError: any) {
+      // Função RPC não disponível - marcar como não existente
+      rpcFunctionChecked = true;
+      rpcFunctionExists = false;
+      // Não logar erro para não poluir o console
+    }
+  }
+
+  // FALLBACK: Processar em lotes menores para evitar timeout
+  // O problema é que buscar todos os registros de document_views pode ser muito lento
+  // Vamos usar lotes menores e processar sequencialmente
+  const BATCH_SIZE = 10; // Reduzido para 10 para evitar timeout
   const needsBatching = documentIds.length > BATCH_SIZE;
 
   let viewsResult, likesResult, commentsResult;
 
+  // Função auxiliar para contar ocorrências
+  const countByDocumentId = (items: any[]): Array<{ document_id: string; count: number }> => {
+    const counts: Record<string, number> = {};
+    items.forEach((item: any) => {
+      if (item.document_id) {
+        counts[item.document_id] = (counts[item.document_id] || 0) + 1;
+      }
+    });
+    return Object.entries(counts).map(([document_id, count]) => ({ document_id, count }));
+  };
+
   if (needsBatching) {
-    // Processar em lotes para evitar timeouts com muitos documentos
+    // Processar em lotes sequencialmente para evitar sobrecarga
     const batches: string[][] = [];
     for (let i = 0; i < documentIds.length; i += BATCH_SIZE) {
       batches.push(documentIds.slice(i, i + BATCH_SIZE));
     }
 
-    // Processar todos os lotes em paralelo
-    const batchPromises = batches.map(async (batch) => {
-      const [batchViews, batchLikes, batchComments] = await Promise.allSettled([
-        supabase.from("document_views").select("document_id").in("document_id", batch),
-        supabase.from("document_likes").select("document_id").in("document_id", batch),
-        supabase.from("document_comments").select("document_id").in("document_id", batch),
-      ]);
+    const allViews: Array<{ document_id: string; count: number }> = [];
+    const allLikes: Array<{ document_id: string; count: number }> = [];
+    const allComments: Array<{ document_id: string; count: number }> = [];
 
-      return { batchViews, batchLikes, batchComments };
+    // Processar lotes sequencialmente (não em paralelo) para evitar timeout
+    for (const batch of batches) {
+      try {
+        // Processar views, likes e comments em paralelo dentro de cada batch
+        const [batchViews, batchLikes, batchComments] = await Promise.allSettled([
+          supabase.from("document_views").select("document_id").in("document_id", batch),
+          supabase.from("document_likes").select("document_id").in("document_id", batch),
+          supabase.from("document_comments").select("document_id").in("document_id", batch),
+        ]);
+
+        if (batchViews.status === "fulfilled" && batchViews.value.data && !batchViews.value.error) {
+          allViews.push(...countByDocumentId(batchViews.value.data));
+        } else if (batchViews.status === "rejected" || batchViews.value?.error) {
+          // Log removido para não expor erros sensíveis
+        }
+
+        if (batchLikes.status === "fulfilled" && batchLikes.value.data && !batchLikes.value.error) {
+          allLikes.push(...countByDocumentId(batchLikes.value.data));
+        } else if (batchLikes.status === "rejected" || batchLikes.value?.error) {
+          // Log removido para não expor erros sensíveis
+        }
+
+        if (batchComments.status === "fulfilled" && batchComments.value.data && !batchComments.value.error) {
+          allComments.push(...countByDocumentId(batchComments.value.data));
+        } else if (batchComments.status === "rejected" || batchComments.value?.error) {
+          // Log removido para não expor erros sensíveis
+        }
+
+        // Pequeno delay entre batches para evitar sobrecarga
+        if (batches.indexOf(batch) < batches.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 50));
+        }
+      } catch (error) {
+        // Log removido para não expor erros sensíveis
+        // Continuar processando outros lotes mesmo se um falhar
+      }
+    }
+
+    // Agregar contagens finais (pode haver duplicatas se um documento aparecer em múltiplos batches)
+    const viewsMap = new Map<string, number>();
+    allViews.forEach(item => {
+      viewsMap.set(item.document_id, (viewsMap.get(item.document_id) || 0) + item.count);
     });
+    viewsResult = { status: "fulfilled" as const, value: { data: Array.from(viewsMap.entries()).map(([document_id, count]) => ({ document_id, count })) } };
 
-    const batchResults = await Promise.all(batchPromises);
-
-    // Combinar resultados de todos os lotes
-    const allViews: any[] = [];
-    const allLikes: any[] = [];
-    const allComments: any[] = [];
-
-    batchResults.forEach(({ batchViews, batchLikes, batchComments }) => {
-      if (batchViews.status === "fulfilled" && batchViews.value.data) {
-        allViews.push(...batchViews.value.data);
-      }
-      if (batchLikes.status === "fulfilled" && batchLikes.value.data) {
-        allLikes.push(...batchLikes.value.data);
-      }
-      if (batchComments.status === "fulfilled" && batchComments.value.data) {
-        allComments.push(...batchComments.value.data);
-      }
+    const likesMap = new Map<string, number>();
+    allLikes.forEach(item => {
+      likesMap.set(item.document_id, (likesMap.get(item.document_id) || 0) + item.count);
     });
+    likesResult = { status: "fulfilled" as const, value: { data: Array.from(likesMap.entries()).map(([document_id, count]) => ({ document_id, count })) } };
 
-    viewsResult = { status: "fulfilled" as const, value: { data: allViews } };
-    likesResult = { status: "fulfilled" as const, value: { data: allLikes } };
-    commentsResult = { status: "fulfilled" as const, value: { data: allComments } };
+    const commentsMap = new Map<string, number>();
+    allComments.forEach(item => {
+      commentsMap.set(item.document_id, (commentsMap.get(item.document_id) || 0) + item.count);
+    });
+    commentsResult = { status: "fulfilled" as const, value: { data: Array.from(commentsMap.entries()).map(([document_id, count]) => ({ document_id, count })) } };
   } else {
     // Processar todos de uma vez se houver poucos documentos
-    const results = await Promise.allSettled([
-      supabase.from("document_views").select("document_id").in("document_id", documentIds),
-      supabase.from("document_likes").select("document_id").in("document_id", documentIds),
-      supabase.from("document_comments").select("document_id").in("document_id", documentIds),
-    ]);
+    try {
+      const [viewsData, likesData, commentsData] = await Promise.allSettled([
+        supabase.from("document_views").select("document_id").in("document_id", documentIds),
+        supabase.from("document_likes").select("document_id").in("document_id", documentIds),
+        supabase.from("document_comments").select("document_id").in("document_id", documentIds),
+      ]);
 
-    viewsResult = results[0];
-    likesResult = results[1];
-    commentsResult = results[2];
+      // Processar views
+      if (viewsData.status === "fulfilled" && viewsData.value.data && !viewsData.value.error) {
+        viewsResult = { 
+          status: "fulfilled" as const, 
+          value: { data: countByDocumentId(viewsData.value.data) } 
+        };
+      } else {
+        viewsResult = { status: "rejected" as const, reason: viewsData.status === "rejected" ? viewsData.reason : viewsData.value?.error };
+        // Log removido para não expor erros sensíveis
+      }
+
+      // Processar likes
+      if (likesData.status === "fulfilled" && likesData.value.data && !likesData.value.error) {
+        likesResult = { 
+          status: "fulfilled" as const, 
+          value: { data: countByDocumentId(likesData.value.data) } 
+        };
+      } else {
+        likesResult = { status: "rejected" as const, reason: likesData.status === "rejected" ? likesData.reason : likesData.value?.error };
+        // Log removido para não expor erros sensíveis
+      }
+
+      // Processar comments
+      if (commentsData.status === "fulfilled" && commentsData.value.data && !commentsData.value.error) {
+        commentsResult = { 
+          status: "fulfilled" as const, 
+          value: { data: countByDocumentId(commentsData.value.data) } 
+        };
+      } else {
+        commentsResult = { status: "rejected" as const, reason: commentsData.status === "rejected" ? commentsData.reason : commentsData.value?.error };
+        // Log removido para não expor erros sensíveis
+      }
+    } catch (error) {
+      // Log removido para não expor erros sensíveis
+      // Retornar stats com zeros se houver erro
+      return stats;
+    }
   }
 
-  // Process views - usar Map para contagem O(n) ao invés de O(n²)
+  // Process views - agora os dados já vêm com count
   if (viewsResult.status === "fulfilled" && viewsResult.value.data) {
-    const viewsMap = new Map<string, number>();
-    // Contar ocorrências de cada document_id de forma eficiente
-    viewsResult.value.data.forEach((view: any) => {
-      if (view.document_id) {
-        viewsMap.set(view.document_id, (viewsMap.get(view.document_id) || 0) + 1);
-      }
-    });
-    // Aplicar contagens ao objeto stats
-    viewsMap.forEach((count, docId) => {
-      if (stats[docId]) {
-        stats[docId].views = count;
+    viewsResult.value.data.forEach((item: { document_id: string; count: number }) => {
+      if (stats[item.document_id]) {
+        stats[item.document_id].views = item.count;
       }
     });
   } else if (viewsResult.status === "rejected") {
-    console.error("Error fetching views:", viewsResult.reason);
+    // Log removido para não expor erros sensíveis
   }
 
-  // Process likes - usar Map para contagem O(n) ao invés de O(n²)
+  // Process likes - agora os dados já vêm com count
   if (likesResult.status === "fulfilled" && likesResult.value.data) {
-    const likesMap = new Map<string, number>();
-    likesResult.value.data.forEach((like: any) => {
-      if (like.document_id) {
-        likesMap.set(like.document_id, (likesMap.get(like.document_id) || 0) + 1);
-      }
-    });
-    likesMap.forEach((count, docId) => {
-      if (stats[docId]) {
-        stats[docId].likes = count;
+    likesResult.value.data.forEach((item: { document_id: string; count: number }) => {
+      if (stats[item.document_id]) {
+        stats[item.document_id].likes = item.count;
       }
     });
   } else if (likesResult.status === "rejected") {
-    console.error("Error fetching likes:", likesResult.reason);
+    // Log removido para não expor erros sensíveis
   }
 
-  // Process comments - usar Map para contagem O(n) ao invés de O(n²)
+  // Process comments - agora os dados já vêm com count
   if (commentsResult.status === "fulfilled" && commentsResult.value.data) {
-    const commentsMap = new Map<string, number>();
-    commentsResult.value.data.forEach((comment: any) => {
-      if (comment.document_id) {
-        commentsMap.set(comment.document_id, (commentsMap.get(comment.document_id) || 0) + 1);
-      }
-    });
-    commentsMap.forEach((count, docId) => {
-      if (stats[docId]) {
-        stats[docId].comments = count;
+    commentsResult.value.data.forEach((item: { document_id: string; count: number }) => {
+      if (stats[item.document_id]) {
+        stats[item.document_id].comments = item.count;
       }
     });
   } else if (commentsResult.status === "rejected") {
-    console.error("Error fetching comments:", commentsResult.reason);
+    // Log removido para não expor erros sensíveis
+    // Não lançar erro, apenas continuar com contagens zero
   }
 
   return stats;
@@ -595,14 +695,70 @@ export function useDeleteDocument() {
   });
 }
 
+// Mapa global para rastrear visualizações em andamento (evita condições de corrida)
+const trackingInProgress = new Set<string>();
+
 // Track document view
 export function useTrackDocumentView() {
+  const queryClient = useQueryClient();
+  
   return useMutation({
-    mutationFn: async (documentId: string) => {
-      const { error } = await supabase
-        .from("document_views")
-        .insert({ document_id: documentId });
-      if (error) throw error;
+    mutationFn: async ({ documentId, userId }: { documentId: string; userId?: string | null }) => {
+      // Verificar se já está sendo processado (evita múltiplas chamadas simultâneas)
+      if (trackingInProgress.has(documentId)) {
+        // Log removido para não expor IDs sensíveis
+        return null; // Já está sendo processado
+      }
+
+      // Marcar como em processamento
+      trackingInProgress.add(documentId);
+
+      try {
+        // Obter informações do navegador
+        const userAgent = navigator.userAgent || null;
+        
+        // Preparar dados para inserção
+        const viewData: {
+          document_id: string;
+          user_id?: string | null;
+          user_agent?: string | null;
+        } = {
+          document_id: documentId,
+          user_id: userId || null,
+          user_agent: userAgent,
+        };
+
+        const { data, error } = await supabase
+          .from("document_views")
+          .insert(viewData)
+          .select()
+          .single();
+
+        if (error) {
+          // Log removido para não expor IDs e erros sensíveis
+          throw error;
+        }
+
+        // Log apenas em desenvolvimento (sem expor IDs sensíveis)
+        if (import.meta.env.DEV) {
+          console.log(`[VIEWS] ✅ Visualização registrada`);
+        }
+
+        return data;
+      } finally {
+        // Sempre remover do Set de processamento, mesmo em caso de erro
+        trackingInProgress.delete(documentId);
+      }
+    },
+    onSuccess: (_, variables) => {
+      // Invalidate queries to update view counts
+      if (variables) {
+        queryClient.invalidateQueries({ queryKey: ["document", variables.documentId] });
+        queryClient.invalidateQueries({ queryKey: ["documents"] });
+        queryClient.invalidateQueries({ queryKey: ["root-contents"] });
+        queryClient.invalidateQueries({ queryKey: ["folder-contents"] });
+        queryClient.invalidateQueries({ queryKey: ["recursive-documents"] });
+      }
     },
   });
 }
@@ -705,6 +861,7 @@ export function useToggleDocumentLike() {
       queryClient.invalidateQueries({ queryKey: ["documents"] });
       queryClient.invalidateQueries({ queryKey: ["root-contents"] });
       queryClient.invalidateQueries({ queryKey: ["folder-contents"] });
+      queryClient.invalidateQueries({ queryKey: ["recursive-documents"] });
     },
   });
 }
@@ -714,10 +871,10 @@ export function useDocumentComments(documentId: string) {
   return useQuery({
     queryKey: ["document-comments", documentId],
     queryFn: async () => {
-      // 1. Buscar comentários
+      // 1. Buscar comentários (incluindo updated_at)
       const { data: comments, error } = await supabase
         .from("document_comments")
-        .select("*")
+        .select("id, content, created_at, updated_at, document_id, user_id")
         .eq("document_id", documentId)
         .order("created_at", { ascending: false });
       
@@ -777,6 +934,71 @@ export function useCreateComment() {
     },
     onError: (error: any) => {
       toast.error("Erro ao adicionar comentário: " + error.message);
+    },
+  });
+}
+
+// Update comment
+export function useUpdateComment() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      commentId,
+      content,
+      documentId,
+    }: {
+      commentId: string;
+      content: string;
+      documentId: string;
+    }) => {
+      const { data, error } = await supabase
+        .from("document_comments")
+        .update({ content })
+        .eq("id", commentId)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["document-comments"] });
+      queryClient.invalidateQueries({ queryKey: ["document", variables.documentId] });
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
+      toast.success("Comentário atualizado!");
+    },
+    onError: (error: any) => {
+      toast.error("Erro ao atualizar comentário: " + error.message);
+    },
+  });
+}
+
+// Delete comment
+export function useDeleteComment() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({
+      commentId,
+      documentId,
+    }: {
+      commentId: string;
+      documentId: string;
+    }) => {
+      const { error } = await supabase
+        .from("document_comments")
+        .delete()
+        .eq("id", commentId);
+      if (error) throw error;
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["document-comments"] });
+      queryClient.invalidateQueries({ queryKey: ["document", variables.documentId] });
+      queryClient.invalidateQueries({ queryKey: ["documents"] });
+      toast.success("Comentário excluído!");
+    },
+    onError: (error: any) => {
+      toast.error("Erro ao excluir comentário: " + error.message);
     },
   });
 }

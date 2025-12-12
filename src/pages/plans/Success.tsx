@@ -287,7 +287,8 @@ export default function PlansSuccess() {
 
         return false;
       } catch (error) {
-        console.error('[Success] Erro ao atualizar plan_id manualmente via Edge Function:', error);
+        // Não reportar como erro crítico - é esperado e tem fallback
+        console.warn('[Success] Edge Function não disponível, usando fallback:', error);
         // Se Edge Function falhar, tentar update direto com RLS
         console.log('[Success] Tentando fallback direto via Supabase client...');
         return await updatePlanIdViaDirectUpdate(PREMIUM_PLAN_ID);

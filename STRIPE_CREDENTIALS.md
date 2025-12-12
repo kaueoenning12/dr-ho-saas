@@ -7,7 +7,7 @@
 - **Chave Pública:** `pk_test_51STMbERpUByu4yV90CWF3VrHIkIb4ScKLXeapOVbkELDmHC1gGZGBg9OUdLF86Vz3NAfYfkspILIRFazoleN9Yxi00eybx98Xc`
 - **Chave Secreta:** `sk_test_51STMbERpUByu4yV9TtZl6lTugyByVyVg6iHSgYuEOEHNkiKwlsQcA1fcBNtSyd7OVgwMJ3H3KFfRFJp2RX8iUDna00XjPz7iJ8`
 - **Product ID:** `prod_TSWvb9EnmOlvLY`
-- **Price ID:** `price_1SVbrGRpUByu4yV90IEbFTqe`
+- **Price ID:** `price_1SdFEiRpUByu4yV9NB4rlLe6`
 
 ## Plano Configurado
 
@@ -64,7 +64,7 @@ Após o pagamento:
 2. Procure por logs da sessão de checkout
 3. Verifique se mostra os IDs corretos:
    - `stripe_product_id: prod_TSWvb9EnmOlvLY`
-   - `stripe_price_id: price_1SVbrGRpUByu4yV90IEbFTqe`
+   - `stripe_price_id: price_1SdFEiRpUByu4yV9NB4rlLe6`
 
 ## Troubleshooting
 
@@ -81,7 +81,7 @@ Após o pagamento:
 
 **Solução:**
 1. Verifique no [Stripe Dashboard](https://dashboard.stripe.com/test/products) se o produto `prod_TSWvb9EnmOlvLY` existe
-2. Verifique se o preço `price_1SVbrGRpUByu4yV90IEbFTqe` está ativo
+2. Verifique se o preço `price_1SdFEiRpUByu4yV9NB4rlLe6` está ativo
 3. Confirme que o plano no banco tem os IDs corretos:
 ```sql
 SELECT stripe_product_id, stripe_price_id 
@@ -98,38 +98,37 @@ WHERE id = 'cb2078ac-1741-4a7b-afc1-48cbf05efd5c';
    - Eventos: `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.payment_succeeded`, `invoice.payment_failed`
 2. Adicione o webhook secret no Supabase como `STRIPE_WEBHOOK_SECRET`
 
-## Próximos Passos para Produção
+## Migração para Produção
 
-### 1. Ativar Conta Stripe
-- Enviar documentos necessários
-- Aguardar aprovação do Stripe
-- Ativar conta de produção
+### Guia Completo de Migração
 
-### 2. Criar Produto de Produção
-- Criar novo produto no Stripe em modo produção
-- Criar preço de R$ 478,80/ano
-- Anotar novos Product ID e Price ID
+Para migrar de teste para produção, siga o guia completo em: `MIGRACAO_STRIPE_PRODUCAO.md`
 
-### 3. Atualizar Credenciais
-- Obter chaves de produção: `pk_live_...` e `sk_live_...`
-- Atualizar `.env` com chaves de produção
-- Atualizar secret `STRIPE_SECRET_KEY` no Supabase
-- Executar migration para atualizar IDs no banco
+### Resumo dos Passos
 
-### 4. Configurar Webhook de Produção
-- Configurar webhook apontando para a URL de produção
-- Adicionar `STRIPE_WEBHOOK_SECRET` de produção no Supabase
+1. **Preparação no Stripe Dashboard**
+   - Ativar conta de produção
+   - Criar produto e preço de produção
+   - Configurar webhook de produção
 
-### 5. Ativar Métodos de Pagamento Adicionais
-- **PIX:** Ativar no Stripe Dashboard → Settings → Payment methods
-- **Boleto:** Ativar no Stripe Dashboard → Settings → Payment methods
-- **Stripe Link:** Já ativado automaticamente com cartões
+2. **Atualizar Banco de Dados**
+   - Executar migration: `20250202000001_migrate_stripe_to_production.sql`
+   - Executar migration: `20250202000002_update_plans_to_production_ids.sql`
+   - Validar com script: `validate_stripe_production_setup.sql`
 
-### 6. Testes de Produção
-- Realizar pagamento real de teste
-- Verificar recebimento do pagamento no Stripe
-- Confirmar atualização de assinatura no banco
-- Testar cancelamento e renovação
+3. **Atualizar Variáveis de Ambiente**
+   - Atualizar `VITE_STRIPE_PUBLISHABLE_KEY` no `.env.local`
+   - Atualizar `VITE_SITE_URL` para URL de produção
+   - Remover `VITE_STRIPE_SECRET_KEY` (não deve ser usada)
+
+4. **Testes**
+   - Executar script de validação
+   - Testar checkout em produção
+   - Verificar webhooks
+
+### Checklist de Migração
+
+Consulte o arquivo `MIGRACAO_STRIPE_PRODUCAO.md` para o checklist completo.
 
 ## Arquivos Relacionados
 

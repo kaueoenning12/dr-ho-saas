@@ -7,17 +7,28 @@ VITE_SUPABASE_URL=https://seu-project-ref.supabase.co
 VITE_SUPABASE_ANON_KEY=sua_anon_key_aqui
 
 # Stripe Configuration
+# IMPORTANTE: As configurações principais do Stripe são gerenciadas via tabela stripe_config no Supabase
+# Estas variáveis são apenas fallback e não devem ser usadas em produção
+
 # Publishable Key - Pode ser exposta no frontend
+# TESTE: pk_test_...
+# PRODUÇÃO: pk_live_...
 VITE_STRIPE_PUBLISHABLE_KEY=pk_test_51STMbT2MC0MvWzlW8pRgM9FgzMt4UgiX4l4W5HSubjQ8B3wsostyjJHFO8Vf3ACTV9fX4XQM8kiToZswlxaOET3q00CfYhrnFG
 
-# Secret Key - Será passada automaticamente para as Edge Functions via código
-# Não se preocupe, ela será enviada apenas nas requisições internas para as Edge Functions
-VITE_STRIPE_SECRET_KEY=sk_test_51STMbT2MC0MvWzlWPCbTHpaWqGVtZX55gyKrzTVI4wFQs60KPKwiBMTsCmhRLQI6ve6WbNmpZnciOK23HUI53rSU00nJLPp8X5
+# Secret Key - NÃO DEVE SER USADA EM PRODUÇÃO
+# A secret key deve ser configurada apenas na tabela stripe_config do Supabase
+# TESTE: sk_test_...
+# PRODUÇÃO: sk_live_... (NÃO colocar aqui, usar stripe_config)
+# VITE_STRIPE_SECRET_KEY=sk_test_...
 
-# Product ID do Stripe
+# Product ID do Stripe (fallback apenas)
+# TESTE: prod_...
+# PRODUÇÃO: prod_... (deve ser configurado no plano via stripe_config)
 VITE_STRIPE_PRODUCT_ID=prod_TSUjx4c42eILF8
 
 # Site URL (opcional, padrão: window.location.origin)
+# TESTE: http://localhost:8080
+# PRODUÇÃO: https://seu-dominio.com
 VITE_SITE_URL=http://localhost:8080
 
 # OpenAI Configuration

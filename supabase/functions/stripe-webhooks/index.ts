@@ -261,11 +261,6 @@ async function handleCheckoutSessionCompleted(supabase: any, stripe: Stripe, ses
   // Map Stripe status to database status
   const status = mapStripeStatusToDb(subscription.status)
   
-  // Calculate expiration date from subscription period
-  const expiresAt = subscription.current_period_end 
-    ? new Date(subscription.current_period_end * 1000).toISOString()
-    : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString() // Fallback: 1 year
-
   // Get customer ID
   const customerId = typeof session.customer === 'string'
     ? session.customer
@@ -293,7 +288,7 @@ async function handleCheckoutSessionCompleted(supabase: any, stripe: Stripe, ses
   // Check if subscription already exists
   const { data: existingSubscription, error: findError } = await supabase
     .from('user_subscriptions')
-    .select('id, plan_id, status')
+    .select('id, plan_id, status, expires_at')
     .eq('user_id', userId)
     .maybeSingle()
 
@@ -302,15 +297,36 @@ async function handleCheckoutSessionCompleted(supabase: any, stripe: Stripe, ses
     return
   }
 
+  // Calculate started_at
+  const startedAt = subscription.current_period_start 
+    ? new Date(subscription.current_period_start * 1000).toISOString()
+    : new Date().toISOString()
+
+  // Calculate expires_at: always 1 year from started_at
+  // If it's a renewal (existing subscription), add 1 year from current date
+  const currentTime = new Date()
+  let expiresAt: string
+  
+  if (existingSubscription) {
+    // Renewal: add 1 year from current date
+    const oneYearFromNow = new Date(currentTime.getTime() + 365 * 24 * 60 * 60 * 1000)
+    expiresAt = oneYearFromNow.toISOString()
+    console.log('[Webhook] Renewal detected - setting expires_at to 1 year from now:', expiresAt)
+  } else {
+    // New subscription: add 1 year from started_at
+    const startedAtDate = new Date(startedAt)
+    const oneYearFromStart = new Date(startedAtDate.getTime() + 365 * 24 * 60 * 60 * 1000)
+    expiresAt = oneYearFromStart.toISOString()
+    console.log('[Webhook] New subscription - setting expires_at to 1 year from started_at:', expiresAt)
+  }
+
   const subscriptionData = {
     user_id: userId,
     plan_id: finalPlanId, // Always use the plan_id from checkout
     stripe_customer_id: customerId,
     stripe_subscription_id: subscriptionId,
     status: status,
-    started_at: subscription.current_period_start 
-      ? new Date(subscription.current_period_start * 1000).toISOString()
-      : new Date().toISOString(),
+    started_at: startedAt,
     expires_at: expiresAt,
   }
 
@@ -365,6 +381,23 @@ async function handleCheckoutSessionCompleted(supabase: any, stripe: Stripe, ses
     updatedData: updatedData?.[0],
   })
 
+  // Check if subscription is expired and update status if needed
+  const currentTimeCheck = new Date()
+  const expiresAtDate = new Date(expiresAt)
+  if (expiresAtDate < currentTimeCheck && status === 'active') {
+    console.log('[Webhook] Subscription has expired, updating status to expired')
+    const { error: expireError } = await supabase
+      .from('user_subscriptions')
+      .update({ status: 'expired' })
+      .eq('user_id', userId)
+    
+    if (expireError) {
+      console.error('[Webhook] Error updating subscription status to expired:', expireError)
+    } else {
+      console.log('[Webhook] Subscription status updated to expired')
+    }
+  }
+
   // Verify the plan_id was saved correctly
   const savedPlanId = updatedData?.[0]?.plan_id
   if (savedPlanId !== finalPlanId) {
@@ -411,6 +444,65 @@ async function handleCheckoutSessionCompleted(supabase: any, stripe: Stripe, ses
     console.warn('[Webhook] Could not log audit event (function may not exist):', auditError)
   }
 
+  // Send webhook notification if subscription is confirmed/paid
+  // Always send webhook when checkout session is completed with paid status
+  // or when subscription is active/trialing (paid subscription)
+  const isPaidSubscription = session.payment_status === 'paid' || 
+                              subscription.status === 'active' || 
+                              subscription.status === 'trialing'
+  
+  const wasNewSubscription = !existingSubscription
+  const isActiveStatus = status === 'active'
+  
+  // Send webhook if:
+  // 1. Payment was successful (paid) OR subscription is active/trialing
+  // 2. AND status is active (subscription confirmed)
+  // Always send for new subscriptions that are paid, or when status becomes active
+  const shouldSendWebhook = (isPaidSubscription && isActiveStatus) || 
+                            (wasNewSubscription && session.payment_status === 'paid')
+  
+  console.log('[Webhook] Checking if webhook should be sent:', {
+    shouldSendWebhook,
+    isPaidSubscription,
+    wasNewSubscription,
+    isActiveStatus,
+    paymentStatus: session.payment_status,
+    subscriptionStatus: subscription.status,
+    dbStatus: status,
+  })
+
+  if (shouldSendWebhook) {
+    try {
+      console.log('[Webhook] 📤 Sending subscription webhook notification...')
+      
+      // Get user phone number from profiles table
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('number')
+        .eq('user_id', userId)
+        .single()
+
+      if (profileError) {
+        console.warn('[Webhook] Could not fetch user phone number:', profileError)
+      }
+
+      await sendSubscriptionWebhook(userId, profile?.number || null)
+      console.log('[Webhook] ✅ Subscription webhook notification sent successfully')
+    } catch (webhookError) {
+      // Log error but don't fail the webhook processing
+      console.error('[Webhook] ❌ Error sending subscription webhook:', webhookError)
+    }
+  } else {
+    console.log('[Webhook] ⚠️ Webhook not sent - conditions not met:', {
+      isPaidSubscription,
+      wasNewSubscription,
+      isActiveStatus,
+      paymentStatus: session.payment_status,
+      subscriptionStatus: subscription.status,
+      dbStatus: status,
+    })
+  }
+
   console.log('[Webhook] Checkout session completed successfully for user:', userId)
 }
 
@@ -435,7 +527,7 @@ async function handleSubscriptionUpdated(supabase: any, subscription: Stripe.Sub
   // Find user by Stripe customer ID
   const { data: userSub, error: findError } = await supabase
     .from('user_subscriptions')
-    .select('user_id, plan_id')
+    .select('user_id, plan_id, status')
     .eq('stripe_customer_id', customerId)
     .single()
 
@@ -443,6 +535,9 @@ async function handleSubscriptionUpdated(supabase: any, subscription: Stripe.Sub
     console.error('[Webhook] User not found for customer:', customerId, findError)
     return
   }
+
+  // Store previous status to check if subscription was just activated
+  const previousStatus = userSub.status
 
   // Get plan_id from subscription metadata
   // IMPORTANT: Always prioritize plan_id from subscription metadata if available
@@ -475,23 +570,37 @@ async function handleSubscriptionUpdated(supabase: any, subscription: Stripe.Sub
 
   // Update subscription status
   const status = mapStripeStatusToDb(subscription.status)
-  const expiresAt = subscription.current_period_end 
-    ? new Date(subscription.current_period_end * 1000).toISOString()
-    : null
+  
+  // Calculate started_at
+  const startedAt = subscription.current_period_start 
+    ? new Date(subscription.current_period_start * 1000).toISOString()
+    : new Date().toISOString()
+
+  // Calculate expires_at: always 1 year from started_at
+  // If subscription is being renewed (status is active and we're updating), add 1 year from current date
+  const currentTimeUpdate = new Date()
+  let expiresAt: string
+  
+  // Check if this is a renewal (status is active and subscription exists)
+  if (status === 'active' && previousStatus === 'active') {
+    // Renewal: add 1 year from current date
+    const oneYearFromNow = new Date(currentTimeUpdate.getTime() + 365 * 24 * 60 * 60 * 1000)
+    expiresAt = oneYearFromNow.toISOString()
+    console.log('[Webhook] Renewal detected in subscription update - setting expires_at to 1 year from now:', expiresAt)
+  } else {
+    // New subscription or status change: add 1 year from started_at
+    const startedAtDate = new Date(startedAt)
+    const oneYearFromStart = new Date(startedAtDate.getTime() + 365 * 24 * 60 * 60 * 1000)
+    expiresAt = oneYearFromStart.toISOString()
+    console.log('[Webhook] Setting expires_at to 1 year from started_at:', expiresAt)
+  }
 
   const updateData: any = {
     stripe_subscription_id: subscription.id,
     status: status,
     plan_id: finalPlanId, // Always update plan_id to ensure it's correct
-  }
-
-  if (expiresAt) {
-    updateData.expires_at = expiresAt
-  }
-
-  // Update started_at if this is a new subscription
-  if (subscription.current_period_start) {
-    updateData.started_at = new Date(subscription.current_period_start * 1000).toISOString()
+    started_at: startedAt,
+    expires_at: expiresAt,
   }
 
   console.log('[Webhook] Updating subscription with data:', {
@@ -520,6 +629,23 @@ async function handleSubscriptionUpdated(supabase: any, subscription: Stripe.Sub
     expiresAt,
     updatedData: updatedData?.[0],
   })
+
+  // Check if subscription is expired and update status if needed
+  const currentTimeExpireCheck = new Date()
+  const expiresAtDate = new Date(expiresAt)
+  if (expiresAtDate < currentTimeExpireCheck && status === 'active') {
+    console.log('[Webhook] Subscription has expired, updating status to expired')
+    const { error: expireError } = await supabase
+      .from('user_subscriptions')
+      .update({ status: 'expired' })
+      .eq('user_id', userSub.user_id)
+    
+    if (expireError) {
+      console.error('[Webhook] Error updating subscription status to expired:', expireError)
+    } else {
+      console.log('[Webhook] Subscription status updated to expired')
+    }
+  }
 
   // Verify the plan_id was updated correctly
   const savedPlanId = updatedData?.[0]?.plan_id
@@ -563,6 +689,43 @@ async function handleSubscriptionUpdated(supabase: any, subscription: Stripe.Sub
     })
   } catch (auditError) {
     console.warn('[Webhook] Could not log audit event (function may not exist):', auditError)
+  }
+
+  // Send webhook notification if subscription was just activated (status changed to active)
+  const statusChangedToActive = status === 'active' && previousStatus !== 'active'
+  const isActiveSubscription = status === 'active' && (subscription.status === 'active' || subscription.status === 'trialing')
+  
+  console.log('[Webhook] Checking if webhook should be sent (subscription update):', {
+    statusChangedToActive,
+    isActiveSubscription,
+    previousStatus,
+    currentStatus: status,
+    stripeStatus: subscription.status,
+  })
+
+  if (statusChangedToActive || isActiveSubscription) {
+    try {
+      console.log('[Webhook] Sending subscription webhook notification (subscription updated)...')
+      
+      // Get user phone number from profiles table
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('number')
+        .eq('user_id', userSub.user_id)
+        .single()
+
+      if (profileError) {
+        console.warn('[Webhook] Could not fetch user phone number:', profileError)
+      }
+
+      await sendSubscriptionWebhook(userSub.user_id, profile?.number || null)
+      console.log('[Webhook] ✅ Subscription webhook notification sent successfully (subscription updated)')
+    } catch (webhookError) {
+      // Log error but don't fail the webhook processing
+      console.error('[Webhook] ❌ Error sending subscription webhook:', webhookError)
+    }
+  } else {
+    console.log('[Webhook] Webhook not sent - subscription update conditions not met')
   }
 }
 
@@ -693,6 +856,89 @@ async function handlePaymentFailed(supabase: any, invoice: Stripe.Invoice) {
   })
 
   console.log('Payment failed for user:', userSub.user_id)
+}
+
+/**
+ * Send webhook notification to external service when subscription is confirmed
+ */
+async function sendSubscriptionWebhook(userId: string, phoneNumber: string | null) {
+  const webhookUrl = 'https://webhook.gruponexusmind.com.br/webhook/nova_assinatura'
+  
+  try {
+    const payload = {
+      user_id: userId,
+      telefone: phoneNumber || null,
+      timestamp: new Date().toISOString(),
+    }
+
+    console.log('[Webhook] 📤 Sending subscription notification to external webhook:', {
+      url: webhookUrl,
+      userId,
+      hasPhone: !!phoneNumber,
+      phoneNumber: phoneNumber || 'null',
+      payload: JSON.stringify(payload),
+    })
+
+    // Create AbortController for timeout
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 seconds timeout
+
+    try {
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': 'Dr-HO-SaaS/1.0',
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      })
+
+      clearTimeout(timeoutId)
+
+      let responseText = ''
+      try {
+        responseText = await response.text()
+      } catch (e) {
+        console.warn('[Webhook] Could not read response body:', e)
+      }
+
+      console.log('[Webhook] Response from external webhook:', {
+        status: response.status,
+        statusText: response.statusText,
+        responseBody: responseText.substring(0, 500), // Limit response body log
+        headers: Object.fromEntries(response.headers.entries()),
+      })
+
+      if (!response.ok) {
+        console.error('[Webhook] ❌ External webhook returned error:', {
+          status: response.status,
+          statusText: response.statusText,
+          responseBody: responseText.substring(0, 500),
+        })
+        throw new Error(`Webhook returned ${response.status}: ${response.statusText}`)
+      } else {
+        console.log('[Webhook] ✅ External webhook notification sent successfully')
+      }
+    } catch (fetchError: any) {
+      clearTimeout(timeoutId)
+      
+      if (fetchError.name === 'AbortError') {
+        console.error('[Webhook] ❌ Request timeout after 30 seconds')
+        throw new Error('Webhook request timeout')
+      }
+      throw fetchError
+    }
+  } catch (error) {
+    // Log error but don't fail the webhook processing
+    console.error('[Webhook] ❌ Error sending external webhook notification:', {
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+      userId,
+      webhookUrl,
+    })
+    throw error // Re-throw para que o chamador possa ver o erro nos logs
+  }
 }
 
 function mapStripeStatusToDb(stripeStatus: string): string {

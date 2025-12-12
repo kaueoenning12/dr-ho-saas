@@ -19,7 +19,17 @@ import { UserActionsDropdown } from "@/components/admin/UserActionsDropdown";
 import { PlanManagementDialog } from "@/components/admin/PlanManagementDialog";
 import { PlanActionsDropdown } from "@/components/admin/PlanActionsDropdown";
 import { StripeConfigDialog } from "@/components/admin/StripeConfigDialog";
-import { useStripeConfigs } from "@/hooks/useStripeConfig";
+import { useStripeConfigs, useDeleteStripeConfig } from "@/hooks/useStripeConfig";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { DocumentActionsDropdown } from "@/components/admin/DocumentActionsDropdown";
 import { HomeAnnouncementDialog } from "@/components/admin/HomeAnnouncementDialog";
 import { EventDialog } from "@/components/admin/EventDialog";
@@ -47,6 +57,8 @@ export default function Admin() {
   const { data: users = [], isLoading: usersLoading, refetch: refetchUsers } = useUsers();
   const { data: plans = [], isLoading: plansLoading, refetch: refetchPlans } = useSubscriptionPlans();
   const { data: stripeConfigs = [], isLoading: stripeConfigsLoading, refetch: refetchStripeConfigs } = useStripeConfigs();
+  const deleteStripeConfig = useDeleteStripeConfig();
+  const [deleteConfigId, setDeleteConfigId] = useState<string | null>(null);
   const { data: ratings = [], isLoading: ratingsLoading } = useRatings();
   const { data: documentStats } = useDocumentStats();
   const { data: userStats } = useUserStats();
@@ -522,10 +534,20 @@ export default function Admin() {
                                   </span>
                                 </TableCell>
                                 <TableCell>
-                                  <StripeConfigDialog 
-                                    config={config} 
-                                    onSuccess={() => refetchStripeConfigs()} 
-                                  />
+                                  <div className="flex items-center gap-2">
+                                    <StripeConfigDialog 
+                                      config={config} 
+                                      onSuccess={() => refetchStripeConfigs()} 
+                                    />
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                      onClick={() => setDeleteConfigId(config.id)}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </div>
                                 </TableCell>
                               </TableRow>
                             ))}
@@ -541,6 +563,57 @@ export default function Admin() {
                     )}
                   </CardContent>
                 </Card>
+
+                {/* Dialog de confirmação de exclusão */}
+                <AlertDialog open={!!deleteConfigId} onOpenChange={(open) => !open && setDeleteConfigId(null)}>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        {(() => {
+                          const configToDelete = stripeConfigs.find(c => c.id === deleteConfigId);
+                          if (!configToDelete) return "Tem certeza que deseja excluir esta configuração?";
+                          
+                          const isActive = configToDelete.is_active;
+                          const env = configToDelete.environment === 'live' ? 'PRODUÇÃO' : 'TESTE';
+                          
+                          return (
+                            <>
+                              Tem certeza que deseja excluir a configuração do Stripe <strong>{env}</strong>?
+                              {isActive && (
+                                <span className="block mt-2 text-red-600 font-semibold">
+                                  ⚠️ ATENÇÃO: Esta configuração está ATIVA. A exclusão pode afetar o funcionamento do sistema de pagamentos.
+                                </span>
+                              )}
+                              Esta ação não pode ser desfeita.
+                            </>
+                          );
+                        })()}
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel disabled={deleteStripeConfig.isPending}>
+                        Cancelar
+                      </AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={async () => {
+                          if (!deleteConfigId) return;
+                          try {
+                            await deleteStripeConfig.mutateAsync(deleteConfigId);
+                            setDeleteConfigId(null);
+                            refetchStripeConfigs();
+                          } catch (error) {
+                            // Erro já é tratado no hook
+                          }
+                        }}
+                        disabled={deleteStripeConfig.isPending}
+                        className="bg-red-600 hover:bg-red-700"
+                      >
+                        {deleteStripeConfig.isPending ? "Excluindo..." : "Excluir"}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </TabsContent>
 
               {/* Tab: Avaliações */}

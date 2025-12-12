@@ -20,10 +20,12 @@ export interface DocumentFilters {
   category?: string;
   searchTerm?: string;
   showOnlyNew?: boolean;
+  showOnlyFavorites?: boolean;
   folderId?: string | null;
   parentFolderId?: string | null;
   limit?: number;
   offset?: number;
+  userId?: string; // Required when filtering by favorites
 }
 
 export interface DocumentStats {
@@ -345,6 +347,21 @@ export function useDocuments(filters?: DocumentFilters, options?: { enabled?: bo
 
       const { data, error } = await query;
       
+      // Filter by favorites if requested
+      let filteredData = data;
+      if (filters?.showOnlyFavorites && filters?.userId && !error && filteredData) {
+        // Get user's favorite document IDs
+        const { data: favorites, error: favoritesError } = await supabase
+          .from("document_favorites")
+          .select("document_id")
+          .eq("user_id", filters.userId);
+        
+        if (!favoritesError && favorites) {
+          const favoriteIds = new Set(favorites.map(f => f.document_id));
+          filteredData = filteredData.filter(doc => favoriteIds.has(doc.id));
+        }
+      }
+      
       // If error is about missing column, return all documents (backward compatibility)
       if (error) {
         // Se erro for sobre ilike, tentar sem filtro de categoria
@@ -390,6 +407,20 @@ export function useDocuments(filters?: DocumentFilters, options?: { enabled?: bo
           if (retryError) throw retryError;
           
           let documents = retryData || [];
+          
+          // Filter by favorites if requested
+          if (filters?.showOnlyFavorites && filters?.userId && documents.length > 0) {
+            const { data: favorites, error: favoritesError } = await supabase
+              .from("document_favorites")
+              .select("document_id")
+              .eq("user_id", filters.userId);
+            
+            if (!favoritesError && favorites) {
+              const favoriteIds = new Set(favorites.map(f => f.document_id));
+              documents = documents.filter((doc: any) => favoriteIds.has(doc.id));
+            }
+          }
+          
           // Aplicar filtro de categoria client-side
           if (filters?.category && filters.category !== "Todas") {
             const categoryFilterNormalized = normalizeCategoryName(filters.category);
@@ -480,6 +511,19 @@ export function useDocuments(filters?: DocumentFilters, options?: { enabled?: bo
           // Continue with filtered documents
           let documents = filteredDocs;
           
+          // Filter by favorites if requested
+          if (filters?.showOnlyFavorites && filters?.userId && documents.length > 0) {
+            const { data: favorites, error: favoritesError } = await supabase
+              .from("document_favorites")
+              .select("document_id")
+              .eq("user_id", filters.userId);
+            
+            if (!favoritesError && favorites) {
+              const favoriteIds = new Set(favorites.map(f => f.document_id));
+              documents = documents.filter((doc: any) => favoriteIds.has(doc.id));
+            }
+          }
+          
           // Apply category filter
           if (filters?.category && filters.category !== "Todas") {
             const categoryFilterNormalized = normalizeCategoryName(filters.category);
@@ -562,6 +606,20 @@ export function useDocuments(filters?: DocumentFilters, options?: { enabled?: bo
       
       // OTIMIZAÇÃO: Não gerar signed URLs - lazy loading no DocumentCard/DocumentView
       let documents = data || [];
+      
+      // Filter by favorites if requested
+      if (filters?.showOnlyFavorites && filters?.userId && documents.length > 0) {
+        // Get user's favorite document IDs
+        const { data: favorites, error: favoritesError } = await supabase
+          .from("document_favorites")
+          .select("document_id")
+          .eq("user_id", filters.userId);
+        
+        if (!favoritesError && favorites) {
+          const favoriteIds = new Set(favorites.map(f => f.document_id));
+          documents = documents.filter((doc: any) => favoriteIds.has(doc.id));
+        }
+      }
       
       // Apply category filter client-side if not applied in database query
       if (filters?.category && filters.category !== "Todas" && !categoryFilterApplied) {

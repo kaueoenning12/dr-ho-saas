@@ -39,6 +39,25 @@ export function initializeErrorHandlers(): void {
       }
     }
     
+    // Suprimir erro de email não confirmado
+    if (
+      errorMessage.includes("Email not confirmed") ||
+      errorMessage.includes("email not confirmed")
+    ) {
+      event.preventDefault();
+      return;
+    }
+    
+    // Suprimir erros esperados de Edge Functions do Stripe (têm fallback)
+    if (
+      errorMessage.includes("Erro ao atualizar plan_id manualmente via Edge Function") ||
+      errorMessage.includes("Erro na Edge Function") ||
+      errorMessage.includes("Erro ao chamar Edge Function")
+    ) {
+      event.preventDefault();
+      return;
+    }
+    
     logJavaScriptError(error, {
       filename: event.filename,
       lineno: event.lineno,
@@ -55,7 +74,12 @@ export function initializeErrorHandlers(): void {
     
     if (
       errorMessage.includes("Invalid Refresh Token") ||
-      errorMessage.includes("Refresh Token Not Found")
+      errorMessage.includes("Refresh Token Not Found") ||
+      errorMessage.includes("Email not confirmed") ||
+      errorMessage.includes("email not confirmed") ||
+      errorMessage.includes("Erro ao atualizar plan_id manualmente via Edge Function") ||
+      errorMessage.includes("Erro na Edge Function") ||
+      errorMessage.includes("Erro ao chamar Edge Function")
     ) {
       // Prevenir que o erro seja logado
       event.preventDefault();
@@ -79,8 +103,26 @@ export function initializeErrorHandlers(): void {
        (errorObject.message?.includes("Invalid Refresh Token") || 
         errorObject.message?.includes("Refresh Token Not Found")));
     
-    // Não logar esse erro específico
-    if (isInvalidRefreshTokenError) {
+    // Suprimir erro de email não confirmado (não é um erro crítico)
+    const isEmailNotConfirmedError = 
+      errorMessage.includes("Email not confirmed") ||
+      errorMessage.includes("email not confirmed") ||
+      (errorObject && typeof errorObject === 'object' && 'message' in errorObject && 
+       (errorObject.message?.includes("Email not confirmed") || 
+        errorObject.message?.includes("email not confirmed")));
+    
+    // Suprimir erros esperados de Edge Functions do Stripe (têm fallback)
+    const isStripeEdgeFunctionError = 
+      errorMessage.includes("Erro ao atualizar plan_id manualmente via Edge Function") ||
+      errorMessage.includes("Erro na Edge Function") ||
+      errorMessage.includes("Erro ao chamar Edge Function") ||
+      (errorObject && typeof errorObject === 'object' && 'message' in errorObject && 
+       (errorObject.message?.includes("Erro ao atualizar plan_id manualmente via Edge Function") ||
+        errorObject.message?.includes("Erro na Edge Function") ||
+        errorObject.message?.includes("Erro ao chamar Edge Function")));
+    
+    // Não logar esses erros específicos
+    if (isInvalidRefreshTokenError || isEmailNotConfirmedError || isStripeEdgeFunctionError) {
       return; // Silenciosamente ignorar
     }
     

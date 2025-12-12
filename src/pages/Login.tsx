@@ -40,10 +40,19 @@ export default function Login() {
       navigate("/");
       console.log("✅ [LOGIN] Navigate chamado");
     } catch (error) {
-      console.error("❌ [LOGIN] Erro no login:", error);
+      const errorMessage = error instanceof Error ? error.message : "Credenciais inválidas";
+      const isEmailNotConfirmed = errorMessage.toLowerCase().includes("email not confirmed");
+      
+      // Não reportar como erro no console se for email não confirmado
+      if (!isEmailNotConfirmed) {
+        console.error("❌ [LOGIN] Erro no login:", error);
+      } else {
+        console.log("ℹ️ [LOGIN] Email não confirmado:", errorMessage);
+      }
+      
       toast({
-        title: "Erro ao fazer login",
-        description: error instanceof Error ? error.message : "Credenciais inválidas",
+        title: isEmailNotConfirmed ? "Email não confirmado" : "Erro ao fazer login",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {

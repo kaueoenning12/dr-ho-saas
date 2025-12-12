@@ -13,7 +13,7 @@ WHERE id = 'cb2078ac-1741-4a7b-afc1-48cbf05efd5c'
 - ✅ Nome: `DR HO - PREMIUM`
 - ✅ Preço: `R$ 478.80`
 - ✅ Stripe Product ID: `prod_TSWvb9EnmOlvLY`
-- ✅ Stripe Price ID: `price_1SVbrGRpUByu4yV90IEbFTqe`
+- ✅ Stripe Price ID: `price_1SdFEiRpUByu4yV9NB4rlLe6`
 - ✅ Status: `Ativo`
 
 ### Variáveis de Ambiente (.env)
@@ -36,7 +36,7 @@ WHERE id = 'cb2078ac-1741-4a7b-afc1-48cbf05efd5c'
 **Onde ocorre:** Na página de checkout do Stripe (após redirecionamento)
 
 **Causa provável:**
-O produto `prod_TSWvb9EnmOlvLY` ou o preço `price_1SVbrGRpUByu4yV90IEbFTqe` **não existem** ou **estão inativos** na sua conta Stripe.
+O produto `prod_TSWvb9EnmOlvLY` ou o preço `price_1SdFEiRpUByu4yV9NB4rlLe6` **não existem** ou **estão inativos** na sua conta Stripe.
 
 ---
 
@@ -58,7 +58,7 @@ O produto `prod_TSWvb9EnmOlvLY` ou o preço `price_1SVbrGRpUByu4yV90IEbFTqe` **n
 1. **Clique no produto encontrado** (`prod_TSWvb9EnmOlvLY`)
 
 2. **Na seção "Pricing", procure por:**
-   - Price ID: `price_1SVbrGRpUByu4yV90IEbFTqe`
+   - Price ID: `price_1SdFEiRpUByu4yV9NB4rlLe6`
    
 3. **Verificar status:**
    - ✅ O preço deve estar **ATIVO** (não arquivado)
@@ -106,7 +106,7 @@ Se o produto `prod_TSWvb9EnmOlvLY` NÃO existe:
 
 ### Solução 2: Criar Novo Preço
 
-Se o preço `price_1SVbrGRpUByu4yV90IEbFTqe` NÃO existe ou está arquivado:
+Se o preço `price_1SdFEiRpUByu4yV9NB4rlLe6` NÃO existe ou está arquivado:
 
 1. **Acesse o produto:** `prod_TSWvb9EnmOlvLY`
 
@@ -227,7 +227,7 @@ testStripeConfig();
 ## 📞 Próximos Passos
 
 1. ✅ Verificar no Stripe Dashboard se `prod_TSWvb9EnmOlvLY` existe e está ativo
-2. ✅ Verificar se `price_1SVbrGRpUByu4yV90IEbFTqe` existe e está ativo
+2. ✅ Verificar se `price_1SdFEiRpUByu4yV9NB4rlLe6` existe e está ativo
 3. ✅ Se não existirem, criar novo produto/preço e me enviar os novos IDs
 4. ✅ Executar o script de teste no console para diagnosticar
 

@@ -16,12 +16,16 @@ import { redirectToCheckout } from "@/lib/stripe/client";
 import { invokeStripeFunction } from "@/lib/stripe/edgeFunctionHelper";
 import { hasValidPaidSubscription } from "@/lib/utils/subscription";
 import { parseFeatures } from "@/lib/utils/parseFeatures";
+import { getStripePublishableKey } from "@/lib/stripe/config";
+import { useStripeConfig } from "@/hooks/useStripeConfig";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function Plans() {
   const { user, isLoading: authLoading } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   
   const { data: plans = [], isLoading: plansLoading } = useSubscriptionPlans();
+  const { data: stripeConfig } = useStripeConfig();
 
   // Mostrar loading enquanto auth está carregando
   if (authLoading || plansLoading) {
@@ -118,6 +122,186 @@ export default function Plans() {
         throw new Error('Usuário não autenticado');
       }
 
+      // ============================================
+      // 🔍 LOG DETALHADO DE TODAS AS CHAVES E CONFIGURAÇÕES
+      // ============================================
+      console.group('🔑 [CHECKOUT] Configurações do Stripe que serão usadas:');
+      
+      // 1. Buscar publishable key (frontend)
+      const publishableKey = await getStripePublishableKey();
+      const publishableKeyFromEnv = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY;
+      
+      // 2. Buscar configuração completa do Stripe do banco
+      const { data: activeStripeConfig } = await supabase
+        .from('stripe_config')
+        .select('*')
+        .eq('is_active', true)
+        .maybeSingle();
+      
+      // 3. Buscar plano completo do banco (com todos os campos)
+      const { data: planDetails } = await supabase
+        .from('subscription_plans')
+        .select('*')
+        .eq('id', primaryPlan.id)
+        .single();
+      
+      // 4. Log completo da configuração
+      console.log('📋 [CHECKOUT] Informações do Plano:', {
+        planId: primaryPlan.id,
+        planName: primaryPlan.name,
+        planPrice: primaryPlan.price,
+        stripeProductId: planDetails?.stripe_product_id || 'NÃO CONFIGURADO',
+        stripePriceId: planDetails?.stripe_price_id || 'NÃO CONFIGURADO',
+        stripePriceIdLength: planDetails?.stripe_price_id?.length || 0,
+        stripePriceIdType: planDetails?.stripe_price_id ? 
+          (planDetails.stripe_price_id.length >= 30 ? 'PRODUÇÃO (ID longo)' : 'TESTE (ID curto)') : 
+          'NÃO CONFIGURADO',
+        planIsActive: planDetails?.is_active,
+      });
+      
+      console.log('🔐 [CHECKOUT] Configuração do Stripe (Banco de Dados):', {
+        hasActiveConfig: !!activeStripeConfig,
+        environment: activeStripeConfig?.environment || 'NÃO CONFIGURADO',
+        secretKeyType: activeStripeConfig?.secret_key ? 
+          (activeStripeConfig.secret_key.startsWith('sk_live_') ? 'PRODUÇÃO' : 
+           activeStripeConfig.secret_key.startsWith('sk_test_') ? 'TESTE' : 
+           'FORMATO DESCONHECIDO') : 
+          'NÃO CONFIGURADO',
+        secretKeyPrefix: activeStripeConfig?.secret_key ? 
+          activeStripeConfig.secret_key.substring(0, 20) + '...' : 
+          'NÃO CONFIGURADO',
+        secretKeyLength: activeStripeConfig?.secret_key?.length || 0,
+        publishableKeyType: activeStripeConfig?.publishable_key ? 
+          (activeStripeConfig.publishable_key.startsWith('pk_live_') ? 'PRODUÇÃO' : 
+           activeStripeConfig.publishable_key.startsWith('pk_test_') ? 'TESTE' : 
+           'FORMATO DESCONHECIDO') : 
+          'NÃO CONFIGURADO',
+        publishableKeyPrefix: activeStripeConfig?.publishable_key ? 
+          activeStripeConfig.publishable_key.substring(0, 20) + '...' : 
+          'NÃO CONFIGURADO',
+        hasWebhookSecret: !!activeStripeConfig?.webhook_secret,
+        webhookSecretPrefix: activeStripeConfig?.webhook_secret ? 
+          activeStripeConfig.webhook_secret.substring(0, 20) + '...' : 
+          'NÃO CONFIGURADO',
+        configIsActive: activeStripeConfig?.is_active,
+        configCreatedAt: activeStripeConfig?.created_at,
+        configUpdatedAt: activeStripeConfig?.updated_at,
+      });
+      
+      console.log('🌐 [CHECKOUT] Publishable Key (Frontend):', {
+        source: publishableKey ? 'Banco de Dados (stripe_config)' : 'Variável de Ambiente (.env)',
+        publishableKeyType: publishableKey ? 
+          (publishableKey.startsWith('pk_live_') ? 'PRODUÇÃO' : 
+           publishableKey.startsWith('pk_test_') ? 'TESTE' : 
+           'FORMATO DESCONHECIDO') : 
+          'NÃO CONFIGURADO',
+        publishableKeyPrefix: publishableKey ? 
+          publishableKey.substring(0, 20) + '...' : 
+          'NÃO CONFIGURADO',
+        fallbackFromEnv: publishableKeyFromEnv ? 
+          publishableKeyFromEnv.substring(0, 20) + '...' : 
+          'NÃO CONFIGURADO',
+      });
+      
+      // 5. Verificar compatibilidade
+      const secretKeyType = activeStripeConfig?.secret_key ? 
+        (activeStripeConfig.secret_key.startsWith('sk_live_') ? 'PRODUÇÃO' : 
+         activeStripeConfig.secret_key.startsWith('sk_test_') ? 'TESTE' : 
+         'DESCONHECIDO') : 
+        'NÃO CONFIGURADO';
+      
+      const priceIdType = planDetails?.stripe_price_id ? 
+        (planDetails.stripe_price_id.length >= 30 ? 'PRODUÇÃO' : 'TESTE') : 
+        'NÃO CONFIGURADO';
+      
+      const isCompatible = 
+        (secretKeyType === 'PRODUÇÃO' && priceIdType === 'PRODUÇÃO') ||
+        (secretKeyType === 'TESTE' && priceIdType === 'TESTE');
+      
+      console.log('⚠️ [CHECKOUT] Verificação de Compatibilidade:', {
+        secretKeyEnvironment: secretKeyType,
+        priceIdEnvironment: priceIdType,
+        isCompatible: isCompatible ? '✅ COMPATÍVEL' : '❌ INCOMPATÍVEL',
+        warning: !isCompatible ? 
+          `INCOMPATIBILIDADE DETECTADA: Chave ${secretKeyType} com Price ID ${priceIdType}. Isso causará erro no checkout!` : 
+          'Configuração compatível',
+      });
+      
+      // 6. Variáveis de ambiente (fallback)
+      console.log('🔧 [CHECKOUT] Variáveis de Ambiente (.env):', {
+        hasViteStripePublishableKey: !!publishableKeyFromEnv,
+        viteStripePublishableKeyType: publishableKeyFromEnv ? 
+          (publishableKeyFromEnv.startsWith('pk_live_') ? 'PRODUÇÃO' : 
+           publishableKeyFromEnv.startsWith('pk_test_') ? 'TESTE' : 
+           'FORMATO DESCONHECIDO') : 
+          'NÃO CONFIGURADO',
+        viteStripePublishableKeyPrefix: publishableKeyFromEnv ? 
+          publishableKeyFromEnv.substring(0, 20) + '...' : 
+          'NÃO CONFIGURADO',
+        hasViteStripeSecretKey: !!import.meta.env.VITE_STRIPE_SECRET_KEY,
+        viteStripeSecretKeyType: import.meta.env.VITE_STRIPE_SECRET_KEY ? 
+          (import.meta.env.VITE_STRIPE_SECRET_KEY.startsWith('sk_live_') ? 'PRODUÇÃO' : 
+           import.meta.env.VITE_STRIPE_SECRET_KEY.startsWith('sk_test_') ? 'TESTE' : 
+           'FORMATO DESCONHECIDO') : 
+          'NÃO CONFIGURADO (correto - não deve ser usado)',
+        viteStripeSecretKeyPrefix: import.meta.env.VITE_STRIPE_SECRET_KEY ? 
+          import.meta.env.VITE_STRIPE_SECRET_KEY.substring(0, 20) + '...' : 
+          'NÃO CONFIGURADO',
+        viteSiteUrl: import.meta.env.VITE_SITE_URL || 'NÃO CONFIGURADO',
+        note: 'A secret key do .env NÃO é enviada para as Edge Functions por segurança',
+      });
+      
+      // 7. Informações adicionais
+      console.log('📝 [CHECKOUT] Informações Adicionais:', {
+        userId: user.id,
+        siteUrl: window.location.origin,
+        userAgent: navigator.userAgent.substring(0, 50) + '...',
+        timestamp: new Date().toISOString(),
+      });
+      
+      // 8. Resumo final
+      console.log('📊 [CHECKOUT] RESUMO FINAL - Configuração que será usada:', {
+        '🔑 Secret Key (Edge Function)': {
+          source: activeStripeConfig?.secret_key ? 'Banco de Dados (stripe_config)' : 'Fallback (Deno.env)',
+          type: secretKeyType,
+          prefix: activeStripeConfig?.secret_key ? 
+            activeStripeConfig.secret_key.substring(0, 20) + '...' : 
+            'NÃO CONFIGURADO',
+        },
+        '🔑 Publishable Key (Frontend)': {
+          source: publishableKey ? 'Banco de Dados (stripe_config)' : 'Variável de Ambiente (.env)',
+          type: publishableKey ? 
+            (publishableKey.startsWith('pk_live_') ? 'PRODUÇÃO' : 
+             publishableKey.startsWith('pk_test_') ? 'TESTE' : 
+             'FORMATO DESCONHECIDO') : 
+            'NÃO CONFIGURADO',
+          prefix: publishableKey ? 
+            publishableKey.substring(0, 20) + '...' : 
+            'NÃO CONFIGURADO',
+        },
+        '💰 Price ID (Plano)': {
+          value: planDetails?.stripe_price_id || 'NÃO CONFIGURADO',
+          type: priceIdType,
+          length: planDetails?.stripe_price_id?.length || 0,
+        },
+        '📦 Product ID (Plano)': {
+          value: planDetails?.stripe_product_id || 'NÃO CONFIGURADO',
+        },
+        '✅ Compatibilidade': {
+          status: isCompatible ? '✅ COMPATÍVEL' : '❌ INCOMPATÍVEL',
+          message: isCompatible ? 
+            'Chave e Price ID são do mesmo ambiente' : 
+            `⚠️ ATENÇÃO: Chave ${secretKeyType} com Price ID ${priceIdType} - Isso causará erro!`,
+        },
+      });
+      
+      console.groupEnd();
+      
+      // ============================================
+      // 🚀 INICIAR CHECKOUT
+      // ============================================
+      console.log('🚀 [CHECKOUT] Iniciando criação de sessão de checkout...');
+      
       // Call Supabase Edge Function to create checkout session
       // A função invokeStripeFunction automaticamente adiciona as chaves do Stripe do .env
       const data = await invokeStripeFunction('create-checkout-session', {

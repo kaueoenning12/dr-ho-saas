@@ -122,3 +122,36 @@ export function useCreateStripeConfig() {
   });
 }
 
+// Delete Stripe configuration
+export function useDeleteStripeConfig() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      console.log("🗑️ [STRIPE CONFIG] Excluindo configuração:", id);
+      const { error } = await supabase
+        .from("stripe_config")
+        .delete()
+        .eq("id", id);
+
+      if (error) {
+        console.error("❌ [STRIPE CONFIG] Erro ao excluir:", error);
+        throw new Error(error.message || "Erro ao excluir configuração. Verifique se você tem permissões de administrador.");
+      }
+      
+      console.log("✅ [STRIPE CONFIG] Configuração excluída:", id);
+      return id;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["stripe-config"] });
+      queryClient.invalidateQueries({ queryKey: ["stripe-configs"] });
+      toast.success("Configuração do Stripe excluída com sucesso!");
+    },
+    onError: (error: any) => {
+      const errorMessage = error.message || "Erro ao excluir configuração. Por favor, tente novamente.";
+      console.error("❌ [STRIPE CONFIG] Erro na mutation:", error);
+      toast.error(errorMessage);
+    },
+  });
+}
+

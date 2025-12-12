@@ -1,11 +1,12 @@
 import { useState, useEffect, memo, useCallback } from "react";
-import { Heart, MessageCircle, Eye, Sparkles, Lock } from "lucide-react";
+import { Heart, MessageCircle, Eye, Sparkles, Lock, Star } from "lucide-react";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Document } from "@/lib/mockData";
 import { isDocumentNew } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToggleDocumentLike } from "@/hooks/useDocumentsQuery";
+import { useToggleDocumentFavorite } from "@/hooks/useFavorites";
 import { toast } from "sonner";
 
 interface DocumentCardProps {
@@ -17,21 +18,32 @@ interface DocumentCardProps {
   // Stats passed from parent to avoid N+1 queries
   isLiked?: boolean;
   likesCount?: number;
+  isFavorited?: boolean;
 }
 
 export const DocumentCard = memo(function DocumentCard({ 
   document, 
   onOpen, 
   isLiked: initialIsLiked = false,
-  likesCount: initialLikesCount 
+  likesCount: initialLikesCount,
+  isFavorited: initialIsFavorited = false
 }: DocumentCardProps) {
   const { user } = useAuth();
   const isNew = isDocumentNew(document.publishedAt);
   const isPremium = document.is_premium ?? false;
   const isLocked = isPremium && !document.is_unlocked;
 
-  // Mutation para dar/remover like
+  // Mutations para dar/remover like e favorito
   const toggleLikeMutation = useToggleDocumentLike();
+  const toggleFavoriteMutation = useToggleDocumentFavorite();
+  
+  // Estado local para favorito
+  const [isFavorited, setIsFavorited] = useState(initialIsFavorited);
+  
+  // Sincronizar estado de favorito com props
+  useEffect(() => {
+    setIsFavorited(initialIsFavorited);
+  }, [initialIsFavorited]);
 
   // Estado local sincronizado com props
   const [liked, setLiked] = useState(initialIsLiked);
@@ -107,6 +119,30 @@ export const DocumentCard = memo(function DocumentCard({
     handleOpen();
   }, [document.id, handleOpen]);
 
+  const handleFavorite = useCallback(async (e: React.MouseEvent) => {
+    e.stopPropagation();
+
+    if (!user) {
+      toast.error("Você precisa estar logado para favoritar relatórios");
+      return;
+    }
+
+    // Optimistic update
+    const wasFavorited = isFavorited;
+    setIsFavorited(!wasFavorited);
+
+    try {
+      await toggleFavoriteMutation.mutateAsync({
+        documentId: document.id,
+        userId: user.id,
+      });
+    } catch (error) {
+      // Revert on error
+      setIsFavorited(wasFavorited);
+      toast.error("Erro ao favoritar relatório. Tente novamente.");
+    }
+  }, [user, isFavorited, document.id, toggleFavoriteMutation]);
+
   return (
     <Card
         className={`group cursor-pointer border shadow-elegant hover:shadow-cyan hover:border-cyan/30 transition-all duration-300 hover:-translate-y-1 hover:scale-[1.02] active:scale-[0.98] bg-card relative select-none shimmer-effect flex flex-col h-full ${
@@ -137,6 +173,21 @@ export const DocumentCard = memo(function DocumentCard({
               PREMIUM
             </Badge>
           )}
+          {/* Botão de favorito */}
+          <button
+            onClick={handleFavorite}
+            disabled={toggleFavoriteMutation.isPending || !user}
+            className="p-1.5 rounded-md hover:bg-yellow-400/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed z-10"
+            title={isFavorited ? "Remover dos favoritos" : "Adicionar aos favoritos"}
+          >
+            <Star 
+              className={`h-4 w-4 transition-colors ${
+                isFavorited 
+                  ? "fill-yellow-400 text-yellow-400" 
+                  : "text-muted-foreground/60 hover:text-yellow-400"
+              }`}
+            />
+          </button>
         </div>
         {isLocked && (
           <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10">

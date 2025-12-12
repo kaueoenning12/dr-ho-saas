@@ -168,7 +168,7 @@ export default function Forum() {
                     </>
                   ) : (
                     <>
-                      {filteredTopics.length} discussão{filteredTopics.length !== 1 ? "ões" : ""} disponível{filteredTopics.length !== 1 ? "is" : ""}
+                      {filteredTopics.length} discussão{filteredTopics.length !== 1 ? "ões" : ""} disponível{filteredTopics.length !== 1 ? "eis" : ""}
                     </>
                   )}
                 </p>

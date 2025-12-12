@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback } from "react";
-import { Search, Sparkles, FileText, MessageSquare, MessageCircle, Megaphone, Lightbulb, CreditCard, Settings, Shield, Home, ArrowLeft, ChevronRight } from "lucide-react";
+import { Search, Sparkles, FileText, MessageSquare, MessageCircle, Megaphone, Lightbulb, CreditCard, Settings, Shield, Home, ArrowLeft, ChevronRight, Star } from "lucide-react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { MobileSidebar } from "@/components/layout/MobileSidebar";
@@ -9,6 +9,7 @@ import { UserProfileMenu } from "@/components/layout/UserProfileMenu";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useDocuments, useUserDocumentLikesBatch } from "@/hooks/useDocumentsQuery";
+import { useBatchDocumentFavorites } from "@/hooks/useFavorites";
 import { useRootContents } from "@/hooks/useFoldersQuery";
 import { useScrollReveal } from "@/hooks/useScrollReveal";
 import type { Database } from "@/integrations/supabase/types";
@@ -24,6 +25,7 @@ export default function Documents() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("Todas");
   const [showOnlyNew, setShowOnlyNew] = useState(false);
+  const [showOnlyFavorites, setShowOnlyFavorites] = useState(false);
   const navigate = useNavigate();
   const { user } = useAuth();
 
@@ -34,12 +36,20 @@ export default function Documents() {
     category: selectedCategory === "Todas" ? undefined : selectedCategory,
     searchTerm: searchTerm,
     showOnlyNew: showOnlyNew,
+    showOnlyFavorites: showOnlyFavorites,
+    userId: user?.id,
     parentFolderId: null,  // ✅ Sempre buscar apenas documentos na raiz
   });
 
   // Batch fetch user likes for all documents to avoid N+1 queries
   const documentIds = useMemo(() => documents.map(doc => doc.id), [documents]);
   const { data: userLikedDocuments = new Set<string>() } = useUserDocumentLikesBatch(
+    documentIds,
+    user?.id
+  );
+  
+  // Batch fetch document favorites
+  const { data: userFavoriteDocuments = new Set<string>() } = useBatchDocumentFavorites(
     documentIds,
     user?.id
   );
@@ -128,6 +138,7 @@ export default function Documents() {
                   size="sm"
                   onClick={() => {
                     setShowOnlyNew(!showOnlyNew);
+                    setShowOnlyFavorites(false);
                     if (!showOnlyNew) {
                       setSelectedCategory("Todas");
                     }
@@ -194,8 +205,8 @@ export default function Documents() {
               </h1>
               <p className="text-muted-foreground mt-0.5 sm:mt-1 text-xs sm:text-[13px] md:text-[14px] font-light">
                 {hasFolders 
-                  ? `${rootContents.folders.length} pasta${rootContents.folders.length !== 1 ? "s" : ""} disponível${rootContents.folders.length !== 1 ? "is" : ""}`
-                  : `${documents.length} relatório${documents.length !== 1 ? "s" : ""} disponível${documents.length !== 1 ? "is" : ""}`
+                  ? `${rootContents.folders.length} pasta${rootContents.folders.length !== 1 ? "s" : ""} ${rootContents.folders.length !== 1 ? "disponíveis" : "disponível"}`
+                  : `${documents.length} relatório${documents.length !== 1 ? "s" : ""} ${documents.length !== 1 ? "disponíveis" : "disponível"}`
                 }
               </p>
             </div>
@@ -252,6 +263,7 @@ export default function Documents() {
                             } as Document)}
                             isLiked={userLikedDocuments.has(document.id)}
                             likesCount={(document as any).likes || 0}
+                            isFavorited={userFavoriteDocuments.has(document.id)}
                           />
                         </div>
                       ))}

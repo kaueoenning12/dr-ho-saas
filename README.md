@@ -85,7 +85,7 @@ VITE_STRIPE_PRODUCT_ID=prod_TSWvb9EnmOlvLY
 - **Nome**: DR HO - PREMIUM
 - **Preço**: R$ 478,80/ano (12x R$ 39,90)
 - **Product ID**: `prod_TSWvb9EnmOlvLY`
-- **Price ID**: `price_1SVbrGRpUByu4yV90IEbFTqe`
+- **Price ID**: `price_1SdFEiRpUByu4yV9NB4rlLe6`
 
 ### 4. Configure o Supabase
 
@@ -116,7 +116,7 @@ SITE_URL=http://localhost:8080
 #### 5.1. Produto já configurado
 O plano **DR HO - PREMIUM** já está configurado no Stripe (Test Mode):
 - **Product ID**: `prod_TSWvb9EnmOlvLY`
-- **Price ID**: `price_1SVbrGRpUByu4yV90IEbFTqe`
+- **Price ID**: `price_1SdFEiRpUByu4yV9NB4rlLe6`
 - **Preço**: R$ 478,80/ano (recorrente)
 
 **Para criar novos produtos:**
@@ -357,7 +357,7 @@ Para suporte técnico ou dúvidas:
 Publishable Key: pk_test_51STMbERpUByu4yV90CWF3VrHIkIb4ScKLXeapOVbkELDmHC1gGZGBg9OUbLF86Vz3NAfYfkspILIRFazoleN9Yxi00eybx98Xc
 Secret Key: sk_test_51STMbERpUByu4yV9TtZl6lTugyByVyVg6iHSgYuEOEHNkiKwlsQcA1fcBNtSyd7OVgwMJ3H3KFfRFJp2RX8iUDna00XjPz7iJ8
 Product ID: prod_TSWvb9EnmOlvLY
-Price ID: price_1SVbrGRpUByu4yV90IEbFTqe
+Price ID: price_1SdFEiRpUByu4yV9NB4rlLe6
 ```
 
 ### Cartão de Teste Stripe

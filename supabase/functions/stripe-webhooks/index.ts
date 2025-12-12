@@ -55,7 +55,10 @@ serve(async (req) => {
       return new Response('Stripe secret key not configured', { status: 500 })
     }
 
-    // Supabase client already initialized above - remove duplicate declaration
+    // Initialize Stripe
+    const stripe = new Stripe(stripeSecretKey, {
+      apiVersion: '2024-12-18.acacia',
+    })
 
     // Get the webhook signature
     const signature = req.headers.get('stripe-signature')

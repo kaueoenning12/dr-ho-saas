@@ -145,6 +145,35 @@ export type Database = {
           },
         ]
       }
+      document_favorites: {
+        Row: {
+          created_at: string
+          document_id: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          document_id: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          document_id?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_favorites_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       document_folders: {
         Row: {
           author_id: string | null
@@ -409,6 +438,67 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      folder_completions: {
+        Row: {
+          completed_at: string
+          created_at: string
+          folder_id: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string
+          created_at?: string
+          folder_id: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          completed_at?: string
+          created_at?: string
+          folder_id?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "folder_completions_folder_id_fkey"
+            columns: ["folder_id"]
+            isOneToOne: false
+            referencedRelation: "document_folders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      folder_favorites: {
+        Row: {
+          created_at: string
+          folder_id: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          folder_id: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          folder_id?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "folder_favorites_folder_id_fkey"
+            columns: ["folder_id"]
+            isOneToOne: false
+            referencedRelation: "document_folders"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       forum_categories: {
         Row: {
@@ -677,6 +767,56 @@ export type Database = {
         }
         Relationships: []
       }
+      stripe_config: {
+        Row: {
+          created_at: string
+          default_price_id: string | null
+          default_product_id: string | null
+          environment: string
+          id: string
+          is_active: boolean
+          publishable_key: string
+          referenced_plan_id: string | null
+          secret_key: string
+          updated_at: string
+          webhook_secret: string | null
+        }
+        Insert: {
+          created_at?: string
+          default_price_id?: string | null
+          default_product_id?: string | null
+          environment: string
+          id?: string
+          is_active?: boolean
+          publishable_key: string
+          referenced_plan_id?: string | null
+          secret_key: string
+          updated_at?: string
+          webhook_secret?: string | null
+        }
+        Update: {
+          created_at?: string
+          default_price_id?: string | null
+          default_product_id?: string | null
+          environment?: string
+          id?: string
+          is_active?: boolean
+          publishable_key?: string
+          referenced_plan_id?: string | null
+          secret_key?: string
+          updated_at?: string
+          webhook_secret?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stripe_config_referenced_plan_id_fkey"
+            columns: ["referenced_plan_id"]
+            isOneToOne: false
+            referencedRelation: "subscription_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       subscription_plans: {
         Row: {
           created_at: string
@@ -784,7 +924,17 @@ export type Database = {
     }
     Functions: {
       folder_has_children: { Args: { folder_id: string }; Returns: boolean }
-      get_document_stats: { Args: never; Returns: Json }
+      get_document_stats:
+        | { Args: never; Returns: Json }
+        | {
+            Args: { document_ids: string[] }
+            Returns: {
+              comments: number
+              document_id: string
+              likes: number
+              views: number
+            }[]
+          }
       get_forum_stats: { Args: never; Returns: Json }
       get_platform_stats: { Args: never; Returns: Json }
       get_user_stats: { Args: never; Returns: Json }

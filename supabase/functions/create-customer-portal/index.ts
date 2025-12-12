@@ -16,10 +16,14 @@ serve(async (req) => {
   try {
     // Get the request body
     const body = await req.json()
-    const { userId, returnUrl, _stripeSecretKey, _siteUrl } = body
+    const { userId, returnUrl, _siteUrl } = body
+
+    // Initialize Supabase client FIRST
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
     // Get Stripe secret key from Supabase (stripe_config table)
-    // Fallback to request body or Deno.env for backward compatibility
     let stripeSecretKey = '';
     let siteUrl = _siteUrl || Deno.env.get('SITE_URL') || 'http://localhost:8080';
 
@@ -33,24 +37,21 @@ serve(async (req) => {
 
       if (!configError && stripeConfig?.secret_key) {
         stripeSecretKey = stripeConfig.secret_key;
-        console.log('[Customer Portal] Usando secret_key do Supabase (stripe_config)');
+        console.log('[Customer Portal] ✅ Usando secret_key do Supabase (stripe_config)');
       } else {
-        // Fallback to request body or Deno.env
-        stripeSecretKey = _stripeSecretKey || Deno.env.get('STRIPE_SECRET_KEY') || '';
-        if (stripeSecretKey) {
-          console.warn('[Customer Portal] Usando secret_key do fallback (.env ou request body)');
-        }
+        console.error('[Customer Portal] ❌ Nenhuma secret_key encontrada no banco de dados');
+        stripeSecretKey = '';
       }
     } catch (error) {
-      console.warn('[Customer Portal] Erro ao buscar config do Supabase, usando fallback:', error);
-      stripeSecretKey = _stripeSecretKey || Deno.env.get('STRIPE_SECRET_KEY') || '';
+      console.error('[Customer Portal] ❌ Erro ao buscar config do Supabase:', error);
+      stripeSecretKey = '';
     }
 
     if (!stripeSecretKey) {
       return new Response(
         JSON.stringify({ 
           error: 'Stripe secret key not configured',
-          details: 'Configure a secret_key na tabela stripe_config do Supabase ou use variável de ambiente STRIPE_SECRET_KEY'
+          details: 'Configure a secret_key na tabela stripe_config do Supabase'
         }),
         { 
           status: 500, 
@@ -63,11 +64,6 @@ serve(async (req) => {
     const stripe = new Stripe(stripeSecretKey, {
       apiVersion: '2024-12-18.acacia',
     })
-
-    // Initialize Supabase client
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
     if (!userId) {
       return new Response(
@@ -102,16 +98,7 @@ serve(async (req) => {
       return_url: returnUrl || `${siteUrl}/settings`,
     })
 
-    // Log the portal session creation
-    await supabase.rpc('log_audit_event', {
-      p_action: 'customer_portal_accessed',
-      p_resource_type: 'subscription',
-      p_resource_id: session.id,
-      p_details: {
-        customer_id: subscription.stripe_customer_id,
-        return_url: returnUrl,
-      },
-    })
+    console.log('[Customer Portal] ✅ Portal session created:', session.id)
 
     return new Response(
       JSON.stringify({ url: session.url }),
@@ -122,7 +109,7 @@ serve(async (req) => {
     )
 
   } catch (error) {
-    console.error('Error creating customer portal session:', error)
+    console.error('[Customer Portal] Error creating customer portal session:', error)
     return new Response(
       JSON.stringify({ error: 'Internal server error' }),
       { 
@@ -132,15 +119,3 @@ serve(async (req) => {
     )
   }
 })
-
-
-
-
-
-
-
-
-
-
-
-

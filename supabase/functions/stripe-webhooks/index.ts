@@ -55,15 +55,7 @@ serve(async (req) => {
       return new Response('Stripe secret key not configured', { status: 500 })
     }
 
-    // Initialize Stripe
-    const stripe = new Stripe(stripeSecretKey, {
-      apiVersion: '2024-12-18.acacia',
-    })
-
-    // Initialize Supabase client
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    const supabase = createClient(supabaseUrl, supabaseServiceKey)
+    // Supabase client already initialized above - remove duplicate declaration
 
     // Get the webhook signature
     const signature = req.headers.get('stripe-signature')

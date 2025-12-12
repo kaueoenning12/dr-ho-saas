@@ -260,52 +260,43 @@ serve(async (req) => {
              Deno.env.get('STRIPE_SECRET_KEY')!.startsWith('sk_test_') ? 'TEST' : 
              'UNKNOWN') : 
             'N/A',
-          note: 'A chave do banco de dados tem prioridade sobre a variável de ambiente',
+          note: 'A chave do banco de dados tem prioridade ABSOLUTA. Variáveis de ambiente são IGNORADAS.',
         });
       } else {
-        // Fallback to request body or Deno.env (não recomendado em produção)
-        stripeSecretKey = _stripeSecretKey || Deno.env.get('STRIPE_SECRET_KEY') || '';
-        if (stripeSecretKey) {
-          const fallbackSource = _stripeSecretKey ? 'request body' : 'Deno.env (variável de ambiente)';
-          const fallbackKeyType = stripeSecretKey.startsWith('sk_live_') ? 'PRODUCTION' : stripeSecretKey.startsWith('sk_test_') ? 'TEST' : 'UNKNOWN';
-          console.warn('[Checkout Session] ⚠️ Usando secret_key do fallback (NÃO RECOMENDADO):', {
-            requestId,
-            source: fallbackSource,
-            hasSecretKey: !!stripeSecretKey,
-            secretKeyPrefix: stripeSecretKey ? stripeSecretKey.substring(0, 20) + '...' : 'missing',
-            secretKeyLength: stripeSecretKey?.length || 0,
-            secretKeyType: fallbackKeyType,
-            warning: '⚠️ ATENÇÃO: Usando fallback! Configure a secret_key na tabela stripe_config do Supabase para produção',
-            configError: configError ? {
-              code: configError.code,
-              message: configError.message,
-              details: configError.details,
-              hint: configError.hint,
-            } : null,
-            hasConfigInDb: !!stripeConfig,
-            configHasSecretKey: !!stripeConfig?.secret_key,
-            reason: configError ? 'Erro ao buscar do banco' : !stripeConfig?.secret_key ? 'Configuração não tem secret_key' : 'Desconhecido',
-            recommendation: 'Verifique se existe um registro na tabela stripe_config com is_active = true e secret_key preenchida',
-          });
-        } else {
-          console.error('[Checkout Session] ❌ Nenhuma secret_key encontrada em nenhuma fonte', {
-            configError: configError ? {
-              code: configError.code,
-              message: configError.message,
-              details: configError.details,
-            } : null,
-            hasStripeConfig: !!stripeConfig,
-            hasSecretKeyInConfig: !!stripeConfig?.secret_key,
-            suggestion: 'Verifique se existe um registro na tabela stripe_config com is_active = true e secret_key preenchida',
-          });
-        }
+        // IMPORTANTE: NÃO usar fallback de variável de ambiente para evitar incompatibilidade
+        // Apenas usar chave do request body em último caso (para depuração)
+        console.error('[Checkout Session] ❌ Nenhuma secret_key encontrada no banco de dados:', {
+          requestId,
+          configError: configError ? {
+            code: configError.code,
+            message: configError.message,
+            details: configError.details,
+            hint: configError.hint,
+          } : null,
+          hasConfigInDb: !!stripeConfig,
+          configHasSecretKey: !!stripeConfig?.secret_key,
+          hasEnvSecretKey: !!Deno.env.get('STRIPE_SECRET_KEY'),
+          envSecretKeyType: Deno.env.get('STRIPE_SECRET_KEY') ? 
+            (Deno.env.get('STRIPE_SECRET_KEY')!.startsWith('sk_live_') ? 'PRODUCTION' : 
+             Deno.env.get('STRIPE_SECRET_KEY')!.startsWith('sk_test_') ? 'TEST' : 
+             'UNKNOWN') : 
+            'N/A',
+          warning: '⚠️ IMPORTANTE: Variáveis de ambiente são IGNORADAS para evitar incompatibilidade. Configure a chave no banco de dados.',
+          suggestion: 'Verifique se existe um registro na tabela stripe_config com is_active = true e secret_key preenchida com a chave CORRETA (sk_live_ para produção)',
+        });
+        
+        // NÃO fazer fallback para Deno.env.get('STRIPE_SECRET_KEY')
+        // Isso evita o erro de incompatibilidade test/live
+        stripeSecretKey = '';
       }
     } catch (error) {
-      console.error('[Checkout Session] ❌ Erro ao buscar config do Supabase, usando fallback:', {
+      console.error('[Checkout Session] ❌ Erro ao buscar config do Supabase:', {
         error: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined,
+        suggestion: 'Configure a secret_key na tabela stripe_config do Supabase',
       });
-      stripeSecretKey = _stripeSecretKey || Deno.env.get('STRIPE_SECRET_KEY') || '';
+      // NÃO fazer fallback para variável de ambiente
+      stripeSecretKey = '';
     }
 
     if (!stripeSecretKey) {

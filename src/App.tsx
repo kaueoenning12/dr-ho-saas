@@ -90,26 +90,11 @@ const queryClient = new QueryClient({
       // Retry failed requests up to 2 times with exponential backoff
       retry: 2,
       retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
-      // Log errors to webhook
-      onError: (error: any) => {
-        logJavaScriptError(error, {
-          errorType: "react_query_query",
-          queryKey: error?.queryKey,
-        });
-      },
     },
     mutations: {
       // Retry mutations once on failure
       retry: 1,
       retryDelay: 1000,
-      // Log errors to webhook
-      onError: (error: any, variables: any, context: any) => {
-        logJavaScriptError(error, {
-          errorType: "react_query_mutation",
-          variables,
-          context,
-        });
-      },
     },
   },
 });
